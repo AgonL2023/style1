@@ -1,266 +1,149 @@
 /*!
- * type-is
- * Copyright(c) 2014 Jonathan Ong
- * Copyright(c) 2014-2015 Douglas Christopher Wilson
+ * vary
+ * Copyright(c) 2014-2017 Douglas Christopher Wilson
  * MIT Licensed
  */
 
 'use strict'
 
 /**
- * Module dependencies.
- * @private
- */
-
-var typer = require('media-typer')
-var mime = require('mime-types')
-
-/**
  * Module exports.
- * @public
  */
 
-module.exports = typeofrequest
-module.exports.is = typeis
-module.exports.hasBody = hasbody
-module.exports.normalize = normalize
-module.exports.match = mimeMatch
+module.exports = vary
+module.exports.append = append
 
 /**
- * Compare a `value` content-type with `types`.
- * Each `type` can be an extension like `html`,
- * a special shortcut like `multipart` or `urlencoded`,
- * or a mime type.
+ * RegExp to match field-name in RFC 7230 sec 3.2
  *
- * If no types match, `false` is returned.
- * Otherwise, the first `type` that matches is returned.
+ * field-name    = token
+ * token         = 1*tchar
+ * tchar         = "!" / "#" / "$" / "%" / "&" / "'" / "*"
+ *               / "+" / "-" / "." / "^" / "_" / "`" / "|" / "~"
+ *               / DIGIT / ALPHA
+ *               ; any VCHAR, except delimiters
+ */
+
+var FIELD_NAME_REGEXP = /^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$/
+
+/**
+ * Append a field to a vary header.
  *
- * @param {String} value
- * @param {Array} types
+ * @param {String} header
+ * @param {String|Array} field
+ * @return {String}
  * @public
  */
 
-function typeis (value, types_) {
-  var i
-  var types = types_
-
-  // remove parameters and normalize
-  var val = tryNormalizeType(value)
-
-  // no type or invalid
-  if (!val) {
-    return false
+function append (header, field) {
+  if (typeof header !== 'string') {
+    throw new TypeError('header argument is required')
   }
 
-  // support flattened arguments
-  if (types && !Array.isArray(types)) {
-    types = new Array(arguments.length - 1)
-    for (i = 0; i < types.length; i++) {
-      types[i] = arguments[i + 1]
+  if (!field) {
+    throw new TypeError('field argument is required')
+  }
+
+  // get fields array
+  var fields = !Array.isArray(field)
+    ? parse(String(field))
+    : field
+
+  // assert on invalid field names
+  for (var j = 0; j < fields.length; j++) {
+    if (!FIELD_NAME_REGEXP.test(fields[j])) {
+      throw new TypeError('field argument contains an invalid header name')
     }
   }
 
-  // no types, return the content type
-  if (!types || !types.length) {
-    return val
+  // existing, unspecified vary
+  if (header === '*') {
+    return header
   }
 
-  var type
-  for (i = 0; i < types.length; i++) {
-    if (mimeMatch(normalize(type = types[i]), val)) {
-      return type[0] === '+' || type.indexOf('*') !== -1
-        ? val
-        : type
+  // enumerate current values
+  var val = header
+  var vals = parse(header.toLowerCase())
+
+  // unspecified vary
+  if (fields.indexOf('*') !== -1 || vals.indexOf('*') !== -1) {
+    return '*'
+  }
+
+  for (var i = 0; i < fields.length; i++) {
+    var fld = fields[i].toLowerCase()
+
+    // append value (case-preserving)
+    if (vals.indexOf(fld) === -1) {
+      vals.push(fld)
+      val = val
+        ? val + ', ' + fields[i]
+        : fields[i]
     }
   }
 
-  // no matches
-  return false
+  return val
 }
 
 /**
- * Check if a request has a request body.
- * A request with a body __must__ either have `transfer-encoding`
- * or `content-length` headers set.
- * http://www.w3.org/Protocols/rfc2616/rfc2616-sec4.html#sec4.3
+ * Parse a vary header into an array.
  *
- * @param {Object} request
- * @return {Boolean}
- * @public
+ * @param {String} header
+ * @return {Array}
+ * @private
  */
 
-function hasbody (req) {
-  return req.headers['transfer-encoding'] !== undefined ||
-    !isNaN(req.headers['content-length'])
-}
+function parse (header) {
+  var end = 0
+  var list = []
+  var start = 0
 
-/**
- * Check if the incoming request contains the "Content-Type"
- * header field, and it contains any of the give mime `type`s.
- * If there is no request body, `null` is returned.
- * If there is no content type, `false` is returned.
- * Otherwise, it returns the first `type` that matches.
- *
- * Examples:
- *
- *     // With Content-Type: text/html; charset=utf-8
- *     this.is('html'); // => 'html'
- *     this.is('text/html'); // => 'text/html'
- *     this.is('text/*', 'application/json'); // => 'text/html'
- *
- *     // When Content-Type is application/json
- *     this.is('json', 'urlencoded'); // => 'json'
- *     this.is('application/json'); // => 'application/json'
- *     this.is('html', 'application/*'); // => 'application/json'
- *
- *     this.is('html'); // => false
- *
- * @param {String|Array} types...
- * @return {String|false|null}
- * @public
- */
-
-function typeofrequest (req, types_) {
-  var types = types_
-
-  // no body
-  if (!hasbody(req)) {
-    return null
-  }
-
-  // support flattened arguments
-  if (arguments.length > 2) {
-    types = new Array(arguments.length - 1)
-    for (var i = 0; i < types.length; i++) {
-      types[i] = arguments[i + 1]
+  // gather tokens
+  for (var i = 0, len = header.length; i < len; i++) {
+    switch (header.charCodeAt(i)) {
+      case 0x20: /*   */
+        if (start === end) {
+          start = end = i + 1
+        }
+        break
+      case 0x2c: /* , */
+        list.push(header.substring(start, end))
+        start = end = i + 1
+        break
+      default:
+        end = i + 1
+        break
     }
   }
 
-  // request content type
-  var value = req.headers['content-type']
+  // final token
+  list.push(header.substring(start, end))
 
-  return typeis(value, types)
+  return list
 }
 
 /**
- * Normalize a mime type.
- * If it's a shorthand, expand it to a valid mime type.
+ * Mark that a request is varied on a header field.
  *
- * In general, you probably want:
- *
- *   var type = is(req, ['urlencoded', 'json', 'multipart']);
- *
- * Then use the appropriate body parsers.
- * These three are the most common request body types
- * and are thus ensured to work.
- *
- * @param {String} type
- * @private
+ * @param {Object} res
+ * @param {String|Array} field
+ * @public
  */
 
-function normalize (type) {
-  if (typeof type !== 'string') {
-    // invalid type
-    return false
+function vary (res, field) {
+  if (!res || !res.getHeader || !res.setHeader) {
+    // quack quack
+    throw new TypeError('res argument is required')
   }
 
-  switch (type) {
-    case 'urlencoded':
-      return 'application/x-www-form-urlencoded'
-    case 'multipart':
-      return 'multipart/*'
-  }
+  // get existing header
+  var val = res.getHeader('Vary') || ''
+  var header = Array.isArray(val)
+    ? val.join(', ')
+    : String(val)
 
-  if (type[0] === '+') {
-    // "+json" -> "*/*+json" expando
-    return '*/*' + type
-  }
-
-  return type.indexOf('/') === -1
-    ? mime.lookup(type)
-    : type
-}
-
-/**
- * Check if `expected` mime type
- * matches `actual` mime type with
- * wildcard and +suffix support.
- *
- * @param {String} expected
- * @param {String} actual
- * @return {Boolean}
- * @private
- */
-
-function mimeMatch (expected, actual) {
-  // invalid type
-  if (expected === false) {
-    return false
-  }
-
-  // split types
-  var actualParts = actual.split('/')
-  var expectedParts = expected.split('/')
-
-  // invalid format
-  if (actualParts.length !== 2 || expectedParts.length !== 2) {
-    return false
-  }
-
-  // validate type
-  if (expectedParts[0] !== '*' && expectedParts[0] !== actualParts[0]) {
-    return false
-  }
-
-  // validate suffix wildcard
-  if (expectedParts[1].substr(0, 2) === '*+') {
-    return expectedParts[1].length <= actualParts[1].length + 1 &&
-      expectedParts[1].substr(1) === actualParts[1].substr(1 - expectedParts[1].length)
-  }
-
-  // validate subtype
-  if (expectedParts[1] !== '*' && expectedParts[1] !== actualParts[1]) {
-    return false
-  }
-
-  return true
-}
-
-/**
- * Normalize a type and remove parameters.
- *
- * @param {string} value
- * @return {string}
- * @private
- */
-
-function normalizeType (value) {
-  // parse the type
-  var type = typer.parse(value)
-
-  // remove the parameters
-  type.parameters = undefined
-
-  // reformat it
-  return typer.format(type)
-}
-
-/**
- * Try to normalize a type and remove parameters.
- *
- * @param {string} value
- * @return {string}
- * @private
- */
-
-function tryNormalizeType (value) {
-  if (!value) {
-    return null
-  }
-
-  try {
-    return normalizeType(value)
-  } catch (err) {
-    return null
+  // set new header
+  if ((val = append(header, field))) {
+    res.setHeader('Vary', val)
   }
 }

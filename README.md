@@ -1,63 +1,101 @@
-# undefsafe
+# vary
 
-Simple *function* for retrieving deep object properties without getting "Cannot read property 'X' of undefined"
+[![NPM Version][npm-image]][npm-url]
+[![NPM Downloads][downloads-image]][downloads-url]
+[![Node.js Version][node-version-image]][node-version-url]
+[![Build Status][travis-image]][travis-url]
+[![Test Coverage][coveralls-image]][coveralls-url]
 
-Can also be used to safely set deep values.
+Manipulate the HTTP Vary header
 
-## Usage
+## Installation
 
-```js
-var object = {
-  a: {
-    b: {
-      c: 1,
-      d: [1,2,3],
-      e: 'remy'
-    }
-  }
-};
+This is a [Node.js](https://nodejs.org/en/) module available through the
+[npm registry](https://www.npmjs.com/). Installation is done using the
+[`npm install` command](https://docs.npmjs.com/getting-started/installing-npm-packages-locally): 
 
-console.log(undefsafe(object, 'a.b.e')); // "remy"
-console.log(undefsafe(object, 'a.b.not.found')); // undefined
+```sh
+$ npm install vary
 ```
 
-Demo: [https://jsbin.com/eroqame/3/edit?js,console](https://jsbin.com/eroqame/3/edit?js,console)
+## API
 
-## Setting
-
-```js
-var object = {
-  a: {
-    b: [1,2,3]
-  }
-};
-
-// modified object
-var res = undefsafe(object, 'a.b.0', 10);
-
-console.log(object); // { a: { b: [10, 2, 3] } }
-console.log(res); // 1 - previous value
-```
-
-## Star rules in paths
-
-As of 1.2.0, `undefsafe` supports a `*` in the path if you want to search all of the properties (or array elements) for a particular element.
-
-The function will only return a single result, either the 3rd argument validation value, or the first positive match. For example, the following github data:
+<!-- eslint-disable no-unused-vars -->
 
 ```js
-const githubData = {
-        commits: [{
-          modified: [
-            "one",
-            "two"
-          ]
-        }, /* ... */ ]
-      };
-
-// first modified file found in the first commit
-console.log(undefsafe(githubData, 'commits.*.modified.0'));
-
-// returns `two` or undefined if not found
-console.log(undefsafe(githubData, 'commits.*.modified.*', 'two'));
+var vary = require('vary')
 ```
+
+### vary(res, field)
+
+Adds the given header `field` to the `Vary` response header of `res`.
+This can be a string of a single field, a string of a valid `Vary`
+header, or an array of multiple fields.
+
+This will append the header if not already listed, otherwise leaves
+it listed in the current location.
+
+<!-- eslint-disable no-undef -->
+
+```js
+// Append "Origin" to the Vary header of the response
+vary(res, 'Origin')
+```
+
+### vary.append(header, field)
+
+Adds the given header `field` to the `Vary` response header string `header`.
+This can be a string of a single field, a string of a valid `Vary` header,
+or an array of multiple fields.
+
+This will append the header if not already listed, otherwise leaves
+it listed in the current location. The new header string is returned.
+
+<!-- eslint-disable no-undef -->
+
+```js
+// Get header string appending "Origin" to "Accept, User-Agent"
+vary.append('Accept, User-Agent', 'Origin')
+```
+
+## Examples
+
+### Updating the Vary header when content is based on it
+
+```js
+var http = require('http')
+var vary = require('vary')
+
+http.createServer(function onRequest (req, res) {
+  // about to user-agent sniff
+  vary(res, 'User-Agent')
+
+  var ua = req.headers['user-agent'] || ''
+  var isMobile = /mobi|android|touch|mini/i.test(ua)
+
+  // serve site, depending on isMobile
+  res.setHeader('Content-Type', 'text/html')
+  res.end('You are (probably) ' + (isMobile ? '' : 'not ') + 'a mobile user')
+})
+```
+
+## Testing
+
+```sh
+$ npm test
+```
+
+## License
+
+[MIT](LICENSE)
+
+[npm-image]: https://img.shields.io/npm/v/vary.svg
+[npm-url]: https://npmjs.org/package/vary
+[node-version-image]: https://img.shields.io/node/v/vary.svg
+[node-version-url]: https://nodejs.org/en/download
+[travis-image]: https://img.shields.io/travis/jshttp/vary/master.svg
+[travis-url]: https://travis-ci.org/jshttp/vary
+[coveralls-image]: https://img.shields.io/coveralls/jshttp/vary/master.svg
+[coveralls-url]: https://coveralls.io/r/jshttp/vary
+[downloads-image]: https://img.shields.io/npm/dm/vary.svg
+[downloads-url]: https://npmjs.org/package/vary
