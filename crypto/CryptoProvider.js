@@ -1,8 +1,11 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.CryptoProviderOnlySupportsAsyncError = exports.CryptoProvider = void 0;
 /**
  * Interface encapsulating the various crypto computations used by the library,
  * allowing pluggable underlying crypto implementations.
  */
-export class CryptoProvider {
+class CryptoProvider {
     /**
      * Computes a SHA-256 HMAC given a secret and a payload (encoded in UTF-8).
      * The output HMAC should be encoded in hexadecimal.
@@ -29,6 +32,7 @@ export class CryptoProvider {
         throw new Error('computeHMACSignatureAsync not implemented.');
     }
 }
+exports.CryptoProvider = CryptoProvider;
 /**
  * If the crypto provider only supports asynchronous operations,
  * throw CryptoProviderOnlySupportsAsyncError instead of
@@ -36,5 +40,6 @@ export class CryptoProvider {
  * a more helpful error message to direct the user to use
  * an asynchronous pathway.
  */
-export class CryptoProviderOnlySupportsAsyncError extends Error {
+class CryptoProviderOnlySupportsAsyncError extends Error {
 }
+exports.CryptoProviderOnlySupportsAsyncError = CryptoProviderOnlySupportsAsyncError;
