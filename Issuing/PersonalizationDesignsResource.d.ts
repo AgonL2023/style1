@@ -2,111 +2,251 @@
 
 declare module 'stripe' {
   namespace Stripe {
-    namespace TestHelpers {
-      namespace Issuing {
-        interface PersonalizationDesignActivateParams {
+    namespace Issuing {
+      interface PersonalizationDesignCreateParams {
+        /**
+         * The physical bundle object belonging to this personalization design.
+         */
+        physical_bundle: string;
+
+        /**
+         * The file for the card logo, for use with physical bundles that support card logos. Must have a `purpose` value of `issuing_logo`.
+         */
+        card_logo?: string;
+
+        /**
+         * Hash containing carrier text, for use with physical bundles that support carrier text.
+         */
+        carrier_text?: PersonalizationDesignCreateParams.CarrierText;
+
+        /**
+         * Specifies which fields in the response should be expanded.
+         */
+        expand?: Array<string>;
+
+        /**
+         * A lookup key used to retrieve personalization designs dynamically from a static string. This may be up to 200 characters.
+         */
+        lookup_key?: string;
+
+        /**
+         * Set of [key-value pairs](https://stripe.com/docs/api/metadata) that you can attach to an object. This can be useful for storing additional information about the object in a structured format. Individual keys can be unset by posting an empty value to them. All keys can be unset by posting an empty value to `metadata`.
+         */
+        metadata?: Stripe.MetadataParam;
+
+        /**
+         * Friendly display name.
+         */
+        name?: string;
+
+        /**
+         * Information on whether this personalization design is used to create cards when one is not specified.
+         */
+        preferences?: PersonalizationDesignCreateParams.Preferences;
+
+        /**
+         * If set to true, will atomically remove the lookup key from the existing personalization design, and assign it to this personalization design.
+         */
+        transfer_lookup_key?: boolean;
+      }
+
+      namespace PersonalizationDesignCreateParams {
+        interface CarrierText {
           /**
-           * Specifies which fields in the response should be expanded.
+           * The footer body text of the carrier letter.
            */
-          expand?: Array<string>;
+          footer_body?: Stripe.Emptyable<string>;
+
+          /**
+           * The footer title text of the carrier letter.
+           */
+          footer_title?: Stripe.Emptyable<string>;
+
+          /**
+           * The header body text of the carrier letter.
+           */
+          header_body?: Stripe.Emptyable<string>;
+
+          /**
+           * The header title text of the carrier letter.
+           */
+          header_title?: Stripe.Emptyable<string>;
+        }
+
+        interface Preferences {
+          /**
+           * Whether we use this personalization design to create cards when one isn't specified. A connected account uses the Connect platform's default design if no personalization design is set as the default design.
+           */
+          is_default: boolean;
         }
       }
 
-      namespace Issuing {
-        interface PersonalizationDesignDeactivateParams {
+      interface PersonalizationDesignRetrieveParams {
+        /**
+         * Specifies which fields in the response should be expanded.
+         */
+        expand?: Array<string>;
+      }
+
+      interface PersonalizationDesignUpdateParams {
+        /**
+         * The file for the card logo, for use with physical bundles that support card logos. Must have a `purpose` value of `issuing_logo`.
+         */
+        card_logo?: Stripe.Emptyable<string>;
+
+        /**
+         * Hash containing carrier text, for use with physical bundles that support carrier text.
+         */
+        carrier_text?: Stripe.Emptyable<
+          PersonalizationDesignUpdateParams.CarrierText
+        >;
+
+        /**
+         * Specifies which fields in the response should be expanded.
+         */
+        expand?: Array<string>;
+
+        /**
+         * A lookup key used to retrieve personalization designs dynamically from a static string. This may be up to 200 characters.
+         */
+        lookup_key?: Stripe.Emptyable<string>;
+
+        /**
+         * Set of [key-value pairs](https://stripe.com/docs/api/metadata) that you can attach to an object. This can be useful for storing additional information about the object in a structured format. Individual keys can be unset by posting an empty value to them. All keys can be unset by posting an empty value to `metadata`.
+         */
+        metadata?: Stripe.MetadataParam;
+
+        /**
+         * Friendly display name. Providing an empty string will set the field to null.
+         */
+        name?: Stripe.Emptyable<string>;
+
+        /**
+         * The physical bundle object belonging to this personalization design.
+         */
+        physical_bundle?: string;
+
+        /**
+         * Information on whether this personalization design is used to create cards when one is not specified.
+         */
+        preferences?: PersonalizationDesignUpdateParams.Preferences;
+
+        /**
+         * If set to true, will atomically remove the lookup key from the existing personalization design, and assign it to this personalization design.
+         */
+        transfer_lookup_key?: boolean;
+      }
+
+      namespace PersonalizationDesignUpdateParams {
+        interface CarrierText {
           /**
-           * Specifies which fields in the response should be expanded.
+           * The footer body text of the carrier letter.
            */
-          expand?: Array<string>;
+          footer_body?: Stripe.Emptyable<string>;
+
+          /**
+           * The footer title text of the carrier letter.
+           */
+          footer_title?: Stripe.Emptyable<string>;
+
+          /**
+           * The header body text of the carrier letter.
+           */
+          header_body?: Stripe.Emptyable<string>;
+
+          /**
+           * The header title text of the carrier letter.
+           */
+          header_title?: Stripe.Emptyable<string>;
+        }
+
+        interface Preferences {
+          /**
+           * Whether we use this personalization design to create cards when one isn't specified. A connected account uses the Connect platform's default design if no personalization design is set as the default design.
+           */
+          is_default: boolean;
         }
       }
 
-      namespace Issuing {
-        interface PersonalizationDesignRejectParams {
-          /**
-           * The reason(s) the personalization design was rejected.
-           */
-          rejection_reasons: PersonalizationDesignRejectParams.RejectionReasons;
+      interface PersonalizationDesignListParams extends PaginationParams {
+        /**
+         * Specifies which fields in the response should be expanded.
+         */
+        expand?: Array<string>;
 
-          /**
-           * Specifies which fields in the response should be expanded.
-           */
-          expand?: Array<string>;
-        }
+        /**
+         * Only return personalization designs with the given lookup keys.
+         */
+        lookup_keys?: Array<string>;
 
-        namespace PersonalizationDesignRejectParams {
-          interface RejectionReasons {
-            /**
-             * The reason(s) the card logo was rejected.
-             */
-            card_logo?: Array<RejectionReasons.CardLogo>;
+        /**
+         * Only return personalization designs with the given preferences.
+         */
+        preferences?: PersonalizationDesignListParams.Preferences;
 
-            /**
-             * The reason(s) the carrier text was rejected.
-             */
-            carrier_text?: Array<RejectionReasons.CarrierText>;
-          }
-
-          namespace RejectionReasons {
-            type CardLogo =
-              | 'geographic_location'
-              | 'inappropriate'
-              | 'network_name'
-              | 'non_binary_image'
-              | 'non_fiat_currency'
-              | 'other'
-              | 'other_entity'
-              | 'promotional_material';
-
-            type CarrierText =
-              | 'geographic_location'
-              | 'inappropriate'
-              | 'network_name'
-              | 'non_fiat_currency'
-              | 'other'
-              | 'other_entity'
-              | 'promotional_material';
-          }
-        }
+        /**
+         * Only return personalization designs with the given status.
+         */
+        status?: PersonalizationDesignListParams.Status;
       }
 
-      namespace Issuing {
-        class PersonalizationDesignsResource {
+      namespace PersonalizationDesignListParams {
+        interface Preferences {
           /**
-           * Updates the status of the specified testmode personalization design object to active.
+           * Only return the personalization design that's set as the default. A connected account uses the Connect platform's default design if no personalization design is set as the default.
            */
-          activate(
-            id: string,
-            params?: PersonalizationDesignActivateParams,
-            options?: RequestOptions
-          ): Promise<Stripe.Response<Stripe.Issuing.PersonalizationDesign>>;
-          activate(
-            id: string,
-            options?: RequestOptions
-          ): Promise<Stripe.Response<Stripe.Issuing.PersonalizationDesign>>;
+          is_default?: boolean;
 
           /**
-           * Updates the status of the specified testmode personalization design object to inactive.
+           * Only return the personalization design that is set as the Connect platform's default. This parameter is only applicable to connected accounts.
            */
-          deactivate(
-            id: string,
-            params?: PersonalizationDesignDeactivateParams,
-            options?: RequestOptions
-          ): Promise<Stripe.Response<Stripe.Issuing.PersonalizationDesign>>;
-          deactivate(
-            id: string,
-            options?: RequestOptions
-          ): Promise<Stripe.Response<Stripe.Issuing.PersonalizationDesign>>;
-
-          /**
-           * Updates the status of the specified testmode personalization design object to rejected.
-           */
-          reject(
-            id: string,
-            params: PersonalizationDesignRejectParams,
-            options?: RequestOptions
-          ): Promise<Stripe.Response<Stripe.Issuing.PersonalizationDesign>>;
+          is_platform_default?: boolean;
         }
+
+        type Status = 'active' | 'inactive' | 'rejected' | 'review';
+      }
+
+      class PersonalizationDesignsResource {
+        /**
+         * Creates a personalization design object.
+         */
+        create(
+          params: PersonalizationDesignCreateParams,
+          options?: RequestOptions
+        ): Promise<Stripe.Response<Stripe.Issuing.PersonalizationDesign>>;
+
+        /**
+         * Retrieves a personalization design object.
+         */
+        retrieve(
+          id: string,
+          params?: PersonalizationDesignRetrieveParams,
+          options?: RequestOptions
+        ): Promise<Stripe.Response<Stripe.Issuing.PersonalizationDesign>>;
+        retrieve(
+          id: string,
+          options?: RequestOptions
+        ): Promise<Stripe.Response<Stripe.Issuing.PersonalizationDesign>>;
+
+        /**
+         * Updates a card personalization object.
+         */
+        update(
+          id: string,
+          params?: PersonalizationDesignUpdateParams,
+          options?: RequestOptions
+        ): Promise<Stripe.Response<Stripe.Issuing.PersonalizationDesign>>;
+
+        /**
+         * Returns a list of personalization design objects. The objects are sorted in descending order by creation date, with the most recently created object appearing first.
+         */
+        list(
+          params?: PersonalizationDesignListParams,
+          options?: RequestOptions
+        ): ApiListPromise<Stripe.Issuing.PersonalizationDesign>;
+        list(
+          options?: RequestOptions
+        ): ApiListPromise<Stripe.Issuing.PersonalizationDesign>;
       }
     }
   }
