@@ -1,8 +1,7 @@
 /*!
- * serve-static
- * Copyright(c) 2010 Sencha Inc.
- * Copyright(c) 2011 TJ Holowaychuk
- * Copyright(c) 2014-2016 Douglas Christopher Wilson
+ * statuses
+ * Copyright(c) 2014 Jonathan Ong
+ * Copyright(c) 2016 Douglas Christopher Wilson
  * MIT Licensed
  */
 
@@ -13,198 +12,135 @@
  * @private
  */
 
-var encodeUrl = require('encodeurl')
-var escapeHtml = require('escape-html')
-var parseUrl = require('parseurl')
-var resolve = require('path').resolve
-var send = require('send')
-var url = require('url')
+var codes = require('./codes.json')
 
 /**
  * Module exports.
  * @public
  */
 
-module.exports = serveStatic
-module.exports.mime = send.mime
+module.exports = status
+
+// status code to message map
+status.message = codes
+
+// status message (lower-case) to code map
+status.code = createMessageToStatusCodeMap(codes)
+
+// array of status codes
+status.codes = createStatusCodeList(codes)
+
+// status codes for redirects
+status.redirect = {
+  300: true,
+  301: true,
+  302: true,
+  303: true,
+  305: true,
+  307: true,
+  308: true
+}
+
+// status codes for empty bodies
+status.empty = {
+  204: true,
+  205: true,
+  304: true
+}
+
+// status codes for when you should retry the request
+status.retry = {
+  502: true,
+  503: true,
+  504: true
+}
 
 /**
- * @param {string} root
- * @param {object} [options]
- * @return {function}
+ * Create a map of message to status code.
+ * @private
+ */
+
+function createMessageToStatusCodeMap (codes) {
+  var map = {}
+
+  Object.keys(codes).forEach(function forEachCode (code) {
+    var message = codes[code]
+    var status = Number(code)
+
+    // populate map
+    map[message.toLowerCase()] = status
+  })
+
+  return map
+}
+
+/**
+ * Create a list of all status codes.
+ * @private
+ */
+
+function createStatusCodeList (codes) {
+  return Object.keys(codes).map(function mapCode (code) {
+    return Number(code)
+  })
+}
+
+/**
+ * Get the status code for given message.
+ * @private
+ */
+
+function getStatusCode (message) {
+  var msg = message.toLowerCase()
+
+  if (!Object.prototype.hasOwnProperty.call(status.code, msg)) {
+    throw new Error('invalid status message: "' + message + '"')
+  }
+
+  return status.code[msg]
+}
+
+/**
+ * Get the status message for given code.
+ * @private
+ */
+
+function getStatusMessage (code) {
+  if (!Object.prototype.hasOwnProperty.call(status.message, code)) {
+    throw new Error('invalid status code: ' + code)
+  }
+
+  return status.message[code]
+}
+
+/**
+ * Get the status code.
+ *
+ * Given a number, this will throw if it is not a known status
+ * code, otherwise the code will be returned. Given a string,
+ * the string will be parsed for a number and return the code
+ * if valid, otherwise will lookup the code assuming this is
+ * the status message.
+ *
+ * @param {string|number} code
+ * @returns {number}
  * @public
  */
 
-function serveStatic (root, options) {
-  if (!root) {
-    throw new TypeError('root path required')
+function status (code) {
+  if (typeof code === 'number') {
+    return getStatusMessage(code)
   }
 
-  if (typeof root !== 'string') {
-    throw new TypeError('root path must be a string')
+  if (typeof code !== 'string') {
+    throw new TypeError('code must be a number or string')
   }
 
-  // copy options object
-  var opts = Object.create(options || null)
-
-  // fall-though
-  var fallthrough = opts.fallthrough !== false
-
-  // default redirect
-  var redirect = opts.redirect !== false
-
-  // headers listener
-  var setHeaders = opts.setHeaders
-
-  if (setHeaders && typeof setHeaders !== 'function') {
-    throw new TypeError('option setHeaders must be function')
+  // '403'
+  var n = parseInt(code, 10)
+  if (!isNaN(n)) {
+    return getStatusMessage(n)
   }
 
-  // setup options for send
-  opts.maxage = opts.maxage || opts.maxAge || 0
-  opts.root = resolve(root)
-
-  // construct directory listener
-  var onDirectory = redirect
-    ? createRedirectDirectoryListener()
-    : createNotFoundDirectoryListener()
-
-  return function serveStatic (req, res, next) {
-    if (req.method !== 'GET' && req.method !== 'HEAD') {
-      if (fallthrough) {
-        return next()
-      }
-
-      // method not allowed
-      res.statusCode = 405
-      res.setHeader('Allow', 'GET, HEAD')
-      res.setHeader('Content-Length', '0')
-      res.end()
-      return
-    }
-
-    var forwardError = !fallthrough
-    var originalUrl = parseUrl.original(req)
-    var path = parseUrl(req).pathname
-
-    // make sure redirect occurs at mount
-    if (path === '/' && originalUrl.pathname.substr(-1) !== '/') {
-      path = ''
-    }
-
-    // create send stream
-    var stream = send(req, path, opts)
-
-    // add directory handler
-    stream.on('directory', onDirectory)
-
-    // add headers listener
-    if (setHeaders) {
-      stream.on('headers', setHeaders)
-    }
-
-    // add file listener for fallthrough
-    if (fallthrough) {
-      stream.on('file', function onFile () {
-        // once file is determined, always forward error
-        forwardError = true
-      })
-    }
-
-    // forward errors
-    stream.on('error', function error (err) {
-      if (forwardError || !(err.statusCode < 500)) {
-        next(err)
-        return
-      }
-
-      next()
-    })
-
-    // pipe
-    stream.pipe(res)
-  }
-}
-
-/**
- * Collapse all leading slashes into a single slash
- * @private
- */
-function collapseLeadingSlashes (str) {
-  for (var i = 0; i < str.length; i++) {
-    if (str.charCodeAt(i) !== 0x2f /* / */) {
-      break
-    }
-  }
-
-  return i > 1
-    ? '/' + str.substr(i)
-    : str
-}
-
-/**
- * Create a minimal HTML document.
- *
- * @param {string} title
- * @param {string} body
- * @private
- */
-
-function createHtmlDocument (title, body) {
-  return '<!DOCTYPE html>\n' +
-    '<html lang="en">\n' +
-    '<head>\n' +
-    '<meta charset="utf-8">\n' +
-    '<title>' + title + '</title>\n' +
-    '</head>\n' +
-    '<body>\n' +
-    '<pre>' + body + '</pre>\n' +
-    '</body>\n' +
-    '</html>\n'
-}
-
-/**
- * Create a directory listener that just 404s.
- * @private
- */
-
-function createNotFoundDirectoryListener () {
-  return function notFound () {
-    this.error(404)
-  }
-}
-
-/**
- * Create a directory listener that performs a redirect.
- * @private
- */
-
-function createRedirectDirectoryListener () {
-  return function redirect (res) {
-    if (this.hasTrailingSlash()) {
-      this.error(404)
-      return
-    }
-
-    // get original URL
-    var originalUrl = parseUrl.original(this.req)
-
-    // append trailing slash
-    originalUrl.path = null
-    originalUrl.pathname = collapseLeadingSlashes(originalUrl.pathname + '/')
-
-    // reformat the URL
-    var loc = encodeUrl(url.format(originalUrl))
-    var doc = createHtmlDocument('Redirecting', 'Redirecting to <a href="' + escapeHtml(loc) + '">' +
-      escapeHtml(loc) + '</a>')
-
-    // send redirect response
-    res.statusCode = 301
-    res.setHeader('Content-Type', 'text/html; charset=UTF-8')
-    res.setHeader('Content-Length', Buffer.byteLength(doc))
-    res.setHeader('Content-Security-Policy', "default-src 'none'")
-    res.setHeader('X-Content-Type-Options', 'nosniff')
-    res.setHeader('Location', loc)
-    res.end(doc)
-  }
+  return getStatusCode(code)
 }

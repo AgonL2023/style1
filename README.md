@@ -1,257 +1,591 @@
-# serve-static
+# Stripe Node.js Library
 
-[![NPM Version][npm-version-image]][npm-url]
-[![NPM Downloads][npm-downloads-image]][npm-url]
-[![Linux Build][github-actions-ci-image]][github-actions-ci-url]
-[![Windows Build][appveyor-image]][appveyor-url]
-[![Test Coverage][coveralls-image]][coveralls-url]
+[![Version](https://img.shields.io/npm/v/stripe.svg)](https://www.npmjs.org/package/stripe)
+[![Build Status](https://github.com/stripe/stripe-node/actions/workflows/main.yml/badge.svg?branch=master)](https://github.com/stripe/stripe-node/actions?query=branch%3Amaster)
+[![Coverage Status](https://coveralls.io/repos/github/stripe/stripe-node/badge.svg?branch=master)](https://coveralls.io/github/stripe/stripe-node?branch=master)
+[![Downloads](https://img.shields.io/npm/dm/stripe.svg)](https://www.npmjs.com/package/stripe)
+[![Try on RunKit](https://badge.runkitcdn.com/stripe.svg)](https://runkit.com/npm/stripe)
 
-## Install
+The Stripe Node library provides convenient access to the Stripe API from
+applications written in server-side JavaScript.
 
-This is a [Node.js](https://nodejs.org/en/) module available through the
-[npm registry](https://www.npmjs.com/). Installation is done using the
-[`npm install` command](https://docs.npmjs.com/getting-started/installing-npm-packages-locally):
+For collecting customer and payment information in the browser, use [Stripe.js][stripe-js].
+
+## Documentation
+
+See the [`stripe-node` API docs](https://stripe.com/docs/api?lang=node) for Node.js.
+
+See [video demonstrations][youtube-playlist] covering how to use the library.
+
+## Requirements
+
+Node 12 or higher.
+
+## Installation
+
+Install the package with:
 
 ```sh
-$ npm install serve-static
+npm install stripe
+# or
+yarn add stripe
 ```
 
-## API
+## Usage
 
+The package needs to be configured with your account's secret key, which is
+available in the [Stripe Dashboard][api-keys]. Require it with the key's
+value:
+
+<!-- prettier-ignore -->
 ```js
-var serveStatic = require('serve-static')
-```
+const stripe = require('stripe')('sk_test_...');
 
-### serveStatic(root, options)
-
-Create a new middleware function to serve files from within a given root
-directory. The file to serve will be determined by combining `req.url`
-with the provided root directory. When a file is not found, instead of
-sending a 404 response, this module will instead call `next()` to move on
-to the next middleware, allowing for stacking and fall-backs.
-
-#### Options
-
-##### acceptRanges
-
-Enable or disable accepting ranged requests, defaults to true.
-Disabling this will not send `Accept-Ranges` and ignore the contents
-of the `Range` request header.
-
-##### cacheControl
-
-Enable or disable setting `Cache-Control` response header, defaults to
-true. Disabling this will ignore the `immutable` and `maxAge` options.
-
-##### dotfiles
-
- Set how "dotfiles" are treated when encountered. A dotfile is a file
-or directory that begins with a dot ("."). Note this check is done on
-the path itself without checking if the path actually exists on the
-disk. If `root` is specified, only the dotfiles above the root are
-checked (i.e. the root itself can be within a dotfile when set
-to "deny").
-
-  - `'allow'` No special treatment for dotfiles.
-  - `'deny'` Deny a request for a dotfile and 403/`next()`.
-  - `'ignore'` Pretend like the dotfile does not exist and 404/`next()`.
-
-The default value is similar to `'ignore'`, with the exception that this
-default will not ignore the files within a directory that begins with a dot.
-
-##### etag
-
-Enable or disable etag generation, defaults to true.
-
-##### extensions
-
-Set file extension fallbacks. When set, if a file is not found, the given
-extensions will be added to the file name and search for. The first that
-exists will be served. Example: `['html', 'htm']`.
-
-The default value is `false`.
-
-##### fallthrough
-
-Set the middleware to have client errors fall-through as just unhandled
-requests, otherwise forward a client error. The difference is that client
-errors like a bad request or a request to a non-existent file will cause
-this middleware to simply `next()` to your next middleware when this value
-is `true`. When this value is `false`, these errors (even 404s), will invoke
-`next(err)`.
-
-Typically `true` is desired such that multiple physical directories can be
-mapped to the same web address or for routes to fill in non-existent files.
-
-The value `false` can be used if this middleware is mounted at a path that
-is designed to be strictly a single file system directory, which allows for
-short-circuiting 404s for less overhead. This middleware will also reply to
-all methods.
-
-The default value is `true`.
-
-##### immutable
-
-Enable or disable the `immutable` directive in the `Cache-Control` response
-header, defaults to `false`. If set to `true`, the `maxAge` option should
-also be specified to enable caching. The `immutable` directive will prevent
-supported clients from making conditional requests during the life of the
-`maxAge` option to check if the file has changed.
-
-##### index
-
-By default this module will send "index.html" files in response to a request
-on a directory. To disable this set `false` or to supply a new index pass a
-string or an array in preferred order.
-
-##### lastModified
-
-Enable or disable `Last-Modified` header, defaults to true. Uses the file
-system's last modified value.
-
-##### maxAge
-
-Provide a max-age in milliseconds for http caching, defaults to 0. This
-can also be a string accepted by the [ms](https://www.npmjs.org/package/ms#readme)
-module.
-
-##### redirect
-
-Redirect to trailing "/" when the pathname is a dir. Defaults to `true`.
-
-##### setHeaders
-
-Function to set custom headers on response. Alterations to the headers need to
-occur synchronously. The function is called as `fn(res, path, stat)`, where
-the arguments are:
-
-  - `res` the response object
-  - `path` the file path that is being sent
-  - `stat` the stat object of the file that is being sent
-
-## Examples
-
-### Serve files with vanilla node.js http server
-
-```js
-var finalhandler = require('finalhandler')
-var http = require('http')
-var serveStatic = require('serve-static')
-
-// Serve up public/ftp folder
-var serve = serveStatic('public/ftp', { index: ['index.html', 'index.htm'] })
-
-// Create server
-var server = http.createServer(function onRequest (req, res) {
-  serve(req, res, finalhandler(req, res))
+stripe.customers.create({
+  email: 'customer@example.com',
 })
-
-// Listen
-server.listen(3000)
+  .then(customer => console.log(customer.id))
+  .catch(error => console.error(error));
 ```
 
-### Serve all files as downloads
+Or using ES modules and `async`/`await`:
 
 ```js
-var contentDisposition = require('content-disposition')
-var finalhandler = require('finalhandler')
-var http = require('http')
-var serveStatic = require('serve-static')
+import Stripe from 'stripe';
+const stripe = new Stripe('sk_test_...');
 
-// Serve up public/ftp folder
-var serve = serveStatic('public/ftp', {
-  index: false,
-  setHeaders: setHeaders
-})
+const customer = await stripe.customers.create({
+  email: 'customer@example.com',
+});
 
-// Set header to force download
-function setHeaders (res, path) {
-  res.setHeader('Content-Disposition', contentDisposition(path))
+console.log(customer.id);
+```
+
+### Usage with TypeScript
+
+As of 8.0.1, Stripe maintains types for the latest [API version][api-versions].
+
+Import Stripe as a default import (not `* as Stripe`, unlike the DefinitelyTyped version)
+and instantiate it as `new Stripe()` with the latest API version.
+
+```ts
+import Stripe from 'stripe';
+const stripe = new Stripe('sk_test_...');
+
+const createCustomer = async () => {
+  const params: Stripe.CustomerCreateParams = {
+    description: 'test customer',
+  };
+
+  const customer: Stripe.Customer = await stripe.customers.create(params);
+
+  console.log(customer.id);
+};
+createCustomer();
+```
+
+You can find a full TS server example in [stripe-samples](https://github.com/stripe-samples/accept-a-payment/tree/main/custom-payment-flow/server/node-typescript).
+
+#### Using old API versions with TypeScript
+
+Types can change between API versions (e.g., Stripe may have changed a field from a string to a hash),
+so our types only reflect the latest API version.
+
+We therefore encourage [upgrading your API version][api-version-upgrading]
+if you would like to take advantage of Stripe's TypeScript definitions.
+
+If you are on an older API version (e.g., `2019-10-17`) and not able to upgrade,
+you may pass another version and use a comment like `// @ts-ignore stripe-version-2019-10-17` to silence type errors here
+and anywhere the types differ between your API version and the latest.
+When you upgrade, you should remove these comments.
+
+We also recommend using `// @ts-ignore` if you have access to a beta feature and need to send parameters beyond the type definitions.
+
+#### Using `expand` with TypeScript
+
+[Expandable][expanding_objects] fields are typed as `string | Foo`,
+so you must cast them appropriately, e.g.,
+
+```ts
+const paymentIntent: Stripe.PaymentIntent = await stripe.paymentIntents.retrieve(
+  'pi_123456789',
+  {
+    expand: ['customer'],
+  }
+);
+const customerEmail: string = (paymentIntent.customer as Stripe.Customer).email;
+```
+
+#### TypeScript and the stripe-node versioning policy
+
+The TypeScript types in stripe-node always reflect the latest shape of the Stripe API. When the Stripe API changes in a [backwards-incompatible way](https://stripe.com/docs/upgrades#what-changes-does-stripe-consider-to-be-backwards-compatible), there is a new Stripe API version, and we release a new major version of stripe-node. Sometimes, though, the Stripe API changes in a way that weakens the guarantees provided by the TypeScript types, but that cannot result in any backwards incompatibility at runtime. For example, we might add a new enum value on a response, along with a new parameter to a request. Adding a new value to a response enum weakens the TypeScript type. However, if the new enum value is only returned when the new parameter is provided, this cannot break any existing usages and so would not be considered a breaking API change. In stripe-node, we do NOT consider such changes to be breaking under our current versioning policy. This means that you might see new type errors from TypeScript as you upgrade minor versions of stripe-node, that you can resolve by adding additional type guards.
+
+Please feel welcome to share your thoughts about the versioning policy in a Github issue. For now, we judge it to be better than the two alternatives: outdated, inaccurate types, or vastly more frequent major releases, which would distract from any future breaking changes with potentially more disruptive runtime implications.
+
+### Using Promises
+
+Every method returns a chainable promise which can be used instead of a regular
+callback:
+
+```js
+// Create a new customer and then create an invoice item then invoice it:
+stripe.customers
+  .create({
+    email: 'customer@example.com',
+  })
+  .then((customer) => {
+    // have access to the customer object
+    return stripe.invoiceItems
+      .create({
+        customer: customer.id, // set the customer id
+        amount: 2500, // 25
+        currency: 'usd',
+        description: 'One-time setup fee',
+      })
+      .then((invoiceItem) => {
+        return stripe.invoices.create({
+          collection_method: 'send_invoice',
+          customer: invoiceItem.customer,
+        });
+      })
+      .then((invoice) => {
+        // New invoice created on a new customer
+      })
+      .catch((err) => {
+        // Deal with an error
+      });
+  });
+```
+
+### Usage with Deno
+
+As of 11.16.0, stripe-node provides a `deno` export target. In your Deno project, import stripe-node using an npm specifier:
+
+Import using npm specifiers:
+
+```js
+import Stripe from 'npm:stripe';
+```
+
+Please see https://github.com/stripe-samples/stripe-node-deno-samples for more detailed examples and instructions on how to use stripe-node in Deno.
+
+## Configuration
+
+### Initialize with config object
+
+The package can be initialized with several options:
+
+```js
+import ProxyAgent from 'https-proxy-agent';
+
+const stripe = Stripe('sk_test_...', {
+  maxNetworkRetries: 1,
+  httpAgent: new ProxyAgent(process.env.http_proxy),
+  timeout: 1000,
+  host: 'api.example.com',
+  port: 123,
+  telemetry: true,
+});
+```
+
+| Option              | Default            | Description                                                                                                                                                                                                                                       |
+| ------------------- | ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `apiVersion`        | `null`             | Stripe API version to be used. If not set, stripe-node will use the latest version at the time of release.                                                                                                                                        |
+| `maxNetworkRetries` | 1                  | The amount of times a request should be [retried](#network-retries).                                                                                                                                                                              |
+| `httpAgent`         | `null`             | [Proxy](#configuring-a-proxy) agent to be used by the library.                                                                                                                                                                                    |
+| `timeout`           | 80000              | [Maximum time each request can take in ms.](#configuring-timeout)                                                                                                                                                                                 |
+| `host`              | `'api.stripe.com'` | Host that requests are made to.                                                                                                                                                                                                                   |
+| `port`              | 443                | Port that requests are made to.                                                                                                                                                                                                                   |
+| `protocol`          | `'https'`          | `'https'` or `'http'`. `http` is never appropriate for sending requests to Stripe servers, and we strongly discourage `http`, even in local testing scenarios, as this can result in your credentials being transmitted over an insecure channel. |
+| `telemetry`         | `true`             | Allow Stripe to send [telemetry](#telemetry).                                                                                                                                                                             |
+
+> **Note**
+> Both `maxNetworkRetries` and `timeout` can be overridden on a per-request basis.
+
+### Configuring Timeout
+
+Timeout can be set globally via the config object:
+
+```js
+const stripe = Stripe('sk_test_...', {
+  timeout: 20 * 1000, // 20 seconds
+});
+```
+
+And overridden on a per-request basis:
+
+```js
+stripe.customers.create(
+  {
+    email: 'customer@example.com',
+  },
+  {
+    timeout: 1000, // 1 second
+  }
+);
+```
+
+### Configuring For Connect
+
+A per-request `Stripe-Account` header for use with [Stripe Connect][connect]
+can be added to any method:
+
+```js
+// List the balance transactions for a connected account:
+stripe.balanceTransactions.list(
+  {
+    limit: 10,
+  },
+  {
+    stripeAccount: 'acct_foo',
+  }
+);
+```
+
+### Configuring a Proxy
+
+To use stripe behind a proxy you can pass an [https-proxy-agent][https-proxy-agent] on initialization:
+
+```js
+if (process.env.http_proxy) {
+  const ProxyAgent = require('https-proxy-agent');
+
+  const stripe = Stripe('sk_test_...', {
+    httpAgent: new ProxyAgent(process.env.http_proxy),
+  });
 }
-
-// Create server
-var server = http.createServer(function onRequest (req, res) {
-  serve(req, res, finalhandler(req, res))
-})
-
-// Listen
-server.listen(3000)
 ```
 
-### Serving using express
+### Network retries
 
-#### Simple
-
-This is a simple example of using Express.
+As of [v13](https://github.com/stripe/stripe-node/releases/tag/v13.0.0) stripe-node will automatically do one reattempt for failed requests that are safe to retry. Automatic network retries can be disabled by setting the `maxNetworkRetries` config option to `0`. You can also set a higher number to reattempt multiple times, with exponential backoff. [Idempotency keys](https://stripe.com/docs/api/idempotent_requests) are added where appropriate to prevent duplication.
 
 ```js
-var express = require('express')
-var serveStatic = require('serve-static')
-
-var app = express()
-
-app.use(serveStatic('public/ftp', { index: ['default.html', 'default.htm'] }))
-app.listen(3000)
+const stripe = Stripe('sk_test_...', {
+  maxNetworkRetries: 0, // Disable retries
+});
 ```
 
-#### Multiple roots
-
-This example shows a simple way to search through multiple directories.
-Files are searched for in `public-optimized/` first, then `public/` second
-as a fallback.
-
 ```js
-var express = require('express')
-var path = require('path')
-var serveStatic = require('serve-static')
-
-var app = express()
-
-app.use(serveStatic(path.join(__dirname, 'public-optimized')))
-app.use(serveStatic(path.join(__dirname, 'public')))
-app.listen(3000)
+const stripe = Stripe('sk_test_...', {
+  maxNetworkRetries: 2, // Retry a request twice before giving up
+});
 ```
 
-#### Different settings for paths
-
-This example shows how to set a different max age depending on the served
-file type. In this example, HTML files are not cached, while everything else
-is for 1 day.
+Network retries can also be set on a per-request basis:
 
 ```js
-var express = require('express')
-var path = require('path')
-var serveStatic = require('serve-static')
+stripe.customers.create(
+  {
+    email: 'customer@example.com',
+  },
+  {
+    maxNetworkRetries: 2, // Retry this specific request twice before giving up
+  }
+);
+```
 
-var app = express()
+### Examining Responses
 
-app.use(serveStatic(path.join(__dirname, 'public'), {
-  maxAge: '1d',
-  setHeaders: setCustomCacheControl
-}))
+Some information about the response which generated a resource is available
+with the `lastResponse` property:
 
-app.listen(3000)
+```js
+customer.lastResponse.requestId; // see: https://stripe.com/docs/api/request_ids?lang=node
+customer.lastResponse.statusCode;
+```
 
-function setCustomCacheControl (res, path) {
-  if (serveStatic.mime.lookup(path) === 'text/html') {
-    // Custom Cache-Control for HTML files
-    res.setHeader('Cache-Control', 'public, max-age=0')
+### `request` and `response` events
+
+The Stripe object emits `request` and `response` events. You can use them like this:
+
+```js
+const stripe = require('stripe')('sk_test_...');
+
+const onRequest = (request) => {
+  // Do something.
+};
+
+// Add the event handler function:
+stripe.on('request', onRequest);
+
+// Remove the event handler function:
+stripe.off('request', onRequest);
+```
+
+#### `request` object
+
+```js
+{
+  api_version: 'latest',
+  account: 'acct_TEST',              // Only present if provided
+  idempotency_key: 'abc123',         // Only present if provided
+  method: 'POST',
+  path: '/v1/customers',
+  request_start_time: 1565125303932  // Unix timestamp in milliseconds
+}
+```
+
+#### `response` object
+
+```js
+{
+  api_version: 'latest',
+  account: 'acct_TEST',              // Only present if provided
+  idempotency_key: 'abc123',         // Only present if provided
+  method: 'POST',
+  path: '/v1/customers',
+  status: 402,
+  request_id: 'req_Ghc9r26ts73DRf',
+  elapsed: 445,                      // Elapsed time in milliseconds
+  request_start_time: 1565125303932, // Unix timestamp in milliseconds
+  request_end_time: 1565125304377    // Unix timestamp in milliseconds
+}
+```
+
+### Webhook signing
+
+Stripe can optionally sign the webhook events it sends to your endpoint, allowing you to validate that they were not sent by a third-party. You can read more about it [here](https://stripe.com/docs/webhooks/signatures).
+
+Please note that you must pass the _raw_ request body, exactly as received from Stripe, to the `constructEvent()` function; this will not work with a parsed (i.e., JSON) request body.
+
+You can find an example of how to use this with various JavaScript frameworks in [`examples/webhook-signing`](examples/webhook-signing) folder, but here's what it looks like:
+
+```js
+const event = stripe.webhooks.constructEvent(
+  webhookRawBody,
+  webhookStripeSignatureHeader,
+  webhookSecret
+);
+```
+
+#### Testing Webhook signing
+
+You can use `stripe.webhooks.generateTestHeaderString` to mock webhook events that come from Stripe:
+
+```js
+const payload = {
+  id: 'evt_test_webhook',
+  object: 'event',
+};
+
+const payloadString = JSON.stringify(payload, null, 2);
+const secret = 'whsec_test_secret';
+
+const header = stripe.webhooks.generateTestHeaderString({
+  payload: payloadString,
+  secret,
+});
+
+const event = stripe.webhooks.constructEvent(payloadString, header, secret);
+
+// Do something with mocked signed event
+expect(event.id).to.equal(payload.id);
+```
+
+### Writing a Plugin
+
+If you're writing a plugin that uses the library, we'd appreciate it if you instantiated your stripe client with `appInfo`, eg;
+
+```js
+const stripe = require('stripe')('sk_test_...', {
+  appInfo: {
+    name: 'MyAwesomePlugin',
+    version: '1.2.34', // Optional
+    url: 'https://myawesomeplugin.info', // Optional
+  },
+});
+```
+
+Or using ES modules or TypeScript:
+
+```js
+const stripe = new Stripe(apiKey, {
+  appInfo: {
+    name: 'MyAwesomePlugin',
+    version: '1.2.34', // Optional
+    url: 'https://myawesomeplugin.info', // Optional
+  },
+});
+```
+
+This information is passed along when the library makes calls to the Stripe API.
+
+### Auto-pagination
+
+We provide a few different APIs for this to aid with a variety of node versions and styles.
+
+#### Async iterators (`for-await-of`)
+
+If you are in a Node environment that has support for [async iteration](https://github.com/tc39/proposal-async-iteration#the-async-iteration-statement-for-await-of),
+such as Node 10+ or [babel](https://babeljs.io/docs/en/babel-plugin-transform-async-generator-functions),
+the following will auto-paginate:
+
+```js
+for await (const customer of stripe.customers.list()) {
+  doSomething(customer);
+  if (shouldStop()) {
+    break;
   }
 }
 ```
 
-## License
+#### `autoPagingEach`
 
-[MIT](LICENSE)
+If you are in a Node environment that has support for `await`, such as Node 7.9 and greater,
+you may pass an async function to `.autoPagingEach`:
 
-[appveyor-image]: https://badgen.net/appveyor/ci/dougwilson/serve-static/master?label=windows
-[appveyor-url]: https://ci.appveyor.com/project/dougwilson/serve-static
-[coveralls-image]: https://badgen.net/coveralls/c/github/expressjs/serve-static/master
-[coveralls-url]: https://coveralls.io/r/expressjs/serve-static?branch=master
-[github-actions-ci-image]: https://badgen.net/github/checks/expressjs/serve-static/master?label=linux
-[github-actions-ci-url]: https://github.com/expressjs/serve-static/actions/workflows/ci.yml
-[node-image]: https://badgen.net/npm/node/serve-static
-[node-url]: https://nodejs.org/en/download/
-[npm-downloads-image]: https://badgen.net/npm/dm/serve-static
-[npm-url]: https://npmjs.org/package/serve-static
-[npm-version-image]: https://badgen.net/npm/v/serve-static
+```js
+await stripe.customers.list().autoPagingEach(async (customer) => {
+  await doSomething(customer);
+  if (shouldBreak()) {
+    return false;
+  }
+});
+console.log('Done iterating.');
+```
+
+Equivalently, without `await`, you may return a Promise, which can resolve to `false` to break:
+
+```js
+stripe.customers
+  .list()
+  .autoPagingEach((customer) => {
+    return doSomething(customer).then(() => {
+      if (shouldBreak()) {
+        return false;
+      }
+    });
+  })
+  .then(() => {
+    console.log('Done iterating.');
+  })
+  .catch(handleError);
+```
+
+#### `autoPagingToArray`
+
+This is a convenience for cases where you expect the number of items
+to be relatively small; accordingly, you must pass a `limit` option
+to prevent runaway list growth from consuming too much memory.
+
+Returns a promise of an array of all items across pages for a list request.
+
+```js
+const allNewCustomers = await stripe.customers
+  .list({created: {gt: lastMonth}})
+  .autoPagingToArray({limit: 10000});
+```
+
+### Telemetry
+
+By default, the library sends request telemetry to Stripe regarding request
+latency and feature usage. These
+numbers help Stripe improve the overall latency of its API for all users, and
+improve popular features.
+
+You can disable this behavior if you prefer:
+
+```js
+const stripe = new Stripe('sk_test_...', {
+  telemetry: false,
+});
+```
+
+### Beta SDKs
+
+Stripe has features in the beta phase that can be accessed via the beta version of this package.
+We would love for you to try these and share feedback with us before these features reach the stable phase.
+The beta versions can be installed in one of two ways
+
+- To install the latest beta version, run the command `npm install stripe@beta --save`
+- To install a specific beta version, replace the term "beta" in the above command with the version number like `npm install stripe@1.2.3-beta.1 --save`
+
+> **Note**
+> There can be breaking changes between beta versions. Therefore we recommend pinning the package version to a specific beta version in your package.json file. This way you can install the same version each time without breaking changes unless you are intentionally looking for the latest beta version.
+
+We highly recommend keeping an eye on when the beta feature you are interested in goes from beta to stable so that you can move from using a beta version of the SDK to the stable version.
+
+The versions tab on the [stripe page on npm](https://www.npmjs.com/package/stripe) lists the current tags in use. The `beta` tag here corresponds to the the latest beta version of the package.
+
+If your beta feature requires a `Stripe-Version` header to be sent, use the `apiVersion` property of `config` object to set it:
+
+```js
+const stripe = new Stripe('sk_test_...', {
+  apiVersion: '2022-08-01; feature_beta=v3',
+});
+```
+
+## Support
+
+New features and bug fixes are released on the latest major version of the `stripe` package. If you are on an older major version, we recommend that you upgrade to the latest in order to use the new features and bug fixes including those for security vulnerabilities. Older major versions of the package will continue to be available for use, but will not be receiving any updates.
+
+## More Information
+
+- [REST API Version](https://github.com/stripe/stripe-node/wiki/REST-API-Version)
+- [Error Handling](https://github.com/stripe/stripe-node/wiki/Error-Handling)
+- [Passing Options](https://github.com/stripe/stripe-node/wiki/Passing-Options)
+- [Using Stripe Connect](https://github.com/stripe/stripe-node/wiki/Using-Stripe-Connect-with-node.js)
+
+## Development
+
+Run all tests:
+
+```bash
+$ yarn install
+$ yarn test
+```
+
+If you do not have `yarn` installed, you can get it with `npm install --global yarn`.
+
+The tests also depends on [stripe-mock][stripe-mock], so make sure to fetch and
+run it from a background terminal ([stripe-mock's README][stripe-mock-usage]
+also contains instructions for installing via Homebrew and other methods):
+
+```bash
+go get -u github.com/stripe/stripe-mock
+stripe-mock
+```
+
+Run a single test suite without a coverage report:
+
+```bash
+$ yarn mocha-only test/Error.spec.ts
+```
+
+Run a single test (case sensitive) in watch mode:
+
+```bash
+$ yarn mocha-only test/Error.spec.ts --grep 'Populates with type' --watch
+```
+
+If you wish, you may run tests using your Stripe _Test_ API key by setting the
+environment variable `STRIPE_TEST_API_KEY` before running the tests:
+
+```bash
+$ export STRIPE_TEST_API_KEY='sk_test....'
+$ yarn test
+```
+
+Run prettier:
+
+Add an [editor integration](https://prettier.io/docs/en/editors.html) or:
+
+```bash
+$ yarn fix
+```
+
+[api-keys]: https://dashboard.stripe.com/account/apikeys
+[api-versions]: https://stripe.com/docs/api/versioning
+[api-version-upgrading]: https://stripe.com/docs/upgrades#how-can-i-upgrade-my-api
+[connect]: https://stripe.com/connect
+[expanding_objects]: https://stripe.com/docs/api/expanding_objects
+[https-proxy-agent]: https://github.com/TooTallNate/node-https-proxy-agent
+[stripe-js]: https://stripe.com/docs/js
+[stripe-mock]: https://github.com/stripe/stripe-mock
+[stripe-mock-usage]: https://github.com/stripe/stripe-mock#usage
+[youtube-playlist]: https://www.youtube.com/playlist?list=PLy1nL-pvL2M5xNIuNapwmABwEy2uifAlY
+
+<!--
+# vim: set tw=79:
+-->
