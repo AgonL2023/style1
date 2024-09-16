@@ -1,18 +1,14 @@
 // File generated from our OpenAPI spec
 import { StripeResource } from '../../StripeResource.js';
 const stripeMethod = StripeResource.method;
-export const Transactions = StripeResource.extend({
+export const PhysicalBundles = StripeResource.extend({
     retrieve: stripeMethod({
         method: 'GET',
-        fullPath: '/v1/issuing/transactions/{transaction}',
-    }),
-    update: stripeMethod({
-        method: 'POST',
-        fullPath: '/v1/issuing/transactions/{transaction}',
+        fullPath: '/v1/issuing/physical_bundles/{physical_bundle}',
     }),
     list: stripeMethod({
         method: 'GET',
-        fullPath: '/v1/issuing/transactions',
+        fullPath: '/v1/issuing/physical_bundles',
         methodType: 'list',
     }),
 });

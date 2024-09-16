@@ -1,25 +1,26 @@
 // File generated from our OpenAPI spec
-import { StripeResource } from '../../../StripeResource.js';
+import { StripeResource } from '../../StripeResource.js';
 const stripeMethod = StripeResource.method;
 export const Authorizations = StripeResource.extend({
-    create: stripeMethod({
-        method: 'POST',
-        fullPath: '/v1/test_helpers/issuing/authorizations',
+    retrieve: stripeMethod({
+        method: 'GET',
+        fullPath: '/v1/issuing/authorizations/{authorization}',
     }),
-    capture: stripeMethod({
+    update: stripeMethod({
         method: 'POST',
-        fullPath: '/v1/test_helpers/issuing/authorizations/{authorization}/capture',
+        fullPath: '/v1/issuing/authorizations/{authorization}',
     }),
-    expire: stripeMethod({
-        method: 'POST',
-        fullPath: '/v1/test_helpers/issuing/authorizations/{authorization}/expire',
+    list: stripeMethod({
+        method: 'GET',
+        fullPath: '/v1/issuing/authorizations',
+        methodType: 'list',
     }),
-    increment: stripeMethod({
+    approve: stripeMethod({
         method: 'POST',
-        fullPath: '/v1/test_helpers/issuing/authorizations/{authorization}/increment',
+        fullPath: '/v1/issuing/authorizations/{authorization}/approve',
     }),
-    reverse: stripeMethod({
+    decline: stripeMethod({
         method: 'POST',
-        fullPath: '/v1/test_helpers/issuing/authorizations/{authorization}/reverse',
+        fullPath: '/v1/issuing/authorizations/{authorization}/decline',
     }),
 });

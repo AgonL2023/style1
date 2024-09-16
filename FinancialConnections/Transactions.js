@@ -4,15 +4,11 @@ const stripeMethod = StripeResource.method;
 export const Transactions = StripeResource.extend({
     retrieve: stripeMethod({
         method: 'GET',
-        fullPath: '/v1/issuing/transactions/{transaction}',
-    }),
-    update: stripeMethod({
-        method: 'POST',
-        fullPath: '/v1/issuing/transactions/{transaction}',
+        fullPath: '/v1/financial_connections/transactions/{transaction}',
     }),
     list: stripeMethod({
         method: 'GET',
-        fullPath: '/v1/issuing/transactions',
+        fullPath: '/v1/financial_connections/transactions',
         methodType: 'list',
     }),
 });
