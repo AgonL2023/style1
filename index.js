@@ -1,289 +1,334 @@
-/*!
- * http-errors
- * Copyright(c) 2014 Jonathan Ong
- * Copyright(c) 2016 Douglas Christopher Wilson
- * MIT Licensed
- */
-
 'use strict'
 
-/**
- * Module dependencies.
- * @private
- */
+// A linked list to keep track of recently-used-ness
+const Yallist = require('yallist')
 
-var deprecate = require('depd')('http-errors')
-var setPrototypeOf = require('setprototypeof')
-var statuses = require('statuses')
-var inherits = require('inherits')
-var toIdentifier = require('toidentifier')
+const MAX = Symbol('max')
+const LENGTH = Symbol('length')
+const LENGTH_CALCULATOR = Symbol('lengthCalculator')
+const ALLOW_STALE = Symbol('allowStale')
+const MAX_AGE = Symbol('maxAge')
+const DISPOSE = Symbol('dispose')
+const NO_DISPOSE_ON_SET = Symbol('noDisposeOnSet')
+const LRU_LIST = Symbol('lruList')
+const CACHE = Symbol('cache')
+const UPDATE_AGE_ON_GET = Symbol('updateAgeOnGet')
 
-/**
- * Module exports.
- * @public
- */
+const naiveLength = () => 1
 
-module.exports = createError
-module.exports.HttpError = createHttpErrorConstructor()
-module.exports.isHttpError = createIsHttpErrorFunction(module.exports.HttpError)
+// lruList is a yallist where the head is the youngest
+// item, and the tail is the oldest.  the list contains the Hit
+// objects as the entries.
+// Each Hit object has a reference to its Yallist.Node.  This
+// never changes.
+//
+// cache is a Map (or PseudoMap) that matches the keys to
+// the Yallist.Node object.
+class LRUCache {
+  constructor (options) {
+    if (typeof options === 'number')
+      options = { max: options }
 
-// Populate exports for all constructors
-populateConstructorExports(module.exports, statuses.codes, module.exports.HttpError)
+    if (!options)
+      options = {}
 
-/**
- * Get the code class of a status code.
- * @private
- */
+    if (options.max && (typeof options.max !== 'number' || options.max < 0))
+      throw new TypeError('max must be a non-negative number')
+    // Kind of weird to have a default max of Infinity, but oh well.
+    const max = this[MAX] = options.max || Infinity
 
-function codeClass (status) {
-  return Number(String(status).charAt(0) + '00')
-}
+    const lc = options.length || naiveLength
+    this[LENGTH_CALCULATOR] = (typeof lc !== 'function') ? naiveLength : lc
+    this[ALLOW_STALE] = options.stale || false
+    if (options.maxAge && typeof options.maxAge !== 'number')
+      throw new TypeError('maxAge must be a number')
+    this[MAX_AGE] = options.maxAge || 0
+    this[DISPOSE] = options.dispose
+    this[NO_DISPOSE_ON_SET] = options.noDisposeOnSet || false
+    this[UPDATE_AGE_ON_GET] = options.updateAgeOnGet || false
+    this.reset()
+  }
 
-/**
- * Create a new HTTP Error.
- *
- * @returns {Error}
- * @public
- */
+  // resize the cache when the max changes.
+  set max (mL) {
+    if (typeof mL !== 'number' || mL < 0)
+      throw new TypeError('max must be a non-negative number')
 
-function createError () {
-  // so much arity going on ~_~
-  var err
-  var msg
-  var status = 500
-  var props = {}
-  for (var i = 0; i < arguments.length; i++) {
-    var arg = arguments[i]
-    var type = typeof arg
-    if (type === 'object' && arg instanceof Error) {
-      err = arg
-      status = err.status || err.statusCode || status
-    } else if (type === 'number' && i === 0) {
-      status = arg
-    } else if (type === 'string') {
-      msg = arg
-    } else if (type === 'object') {
-      props = arg
-    } else {
-      throw new TypeError('argument #' + (i + 1) + ' unsupported type ' + type)
+    this[MAX] = mL || Infinity
+    trim(this)
+  }
+  get max () {
+    return this[MAX]
+  }
+
+  set allowStale (allowStale) {
+    this[ALLOW_STALE] = !!allowStale
+  }
+  get allowStale () {
+    return this[ALLOW_STALE]
+  }
+
+  set maxAge (mA) {
+    if (typeof mA !== 'number')
+      throw new TypeError('maxAge must be a non-negative number')
+
+    this[MAX_AGE] = mA
+    trim(this)
+  }
+  get maxAge () {
+    return this[MAX_AGE]
+  }
+
+  // resize the cache when the lengthCalculator changes.
+  set lengthCalculator (lC) {
+    if (typeof lC !== 'function')
+      lC = naiveLength
+
+    if (lC !== this[LENGTH_CALCULATOR]) {
+      this[LENGTH_CALCULATOR] = lC
+      this[LENGTH] = 0
+      this[LRU_LIST].forEach(hit => {
+        hit.length = this[LENGTH_CALCULATOR](hit.value, hit.key)
+        this[LENGTH] += hit.length
+      })
+    }
+    trim(this)
+  }
+  get lengthCalculator () { return this[LENGTH_CALCULATOR] }
+
+  get length () { return this[LENGTH] }
+  get itemCount () { return this[LRU_LIST].length }
+
+  rforEach (fn, thisp) {
+    thisp = thisp || this
+    for (let walker = this[LRU_LIST].tail; walker !== null;) {
+      const prev = walker.prev
+      forEachStep(this, fn, walker, thisp)
+      walker = prev
     }
   }
 
-  if (typeof status === 'number' && (status < 400 || status >= 600)) {
-    deprecate('non-error status code; use only 4xx or 5xx status codes')
-  }
-
-  if (typeof status !== 'number' ||
-    (!statuses.message[status] && (status < 400 || status >= 600))) {
-    status = 500
-  }
-
-  // constructor
-  var HttpError = createError[status] || createError[codeClass(status)]
-
-  if (!err) {
-    // create error
-    err = HttpError
-      ? new HttpError(msg)
-      : new Error(msg || statuses.message[status])
-    Error.captureStackTrace(err, createError)
-  }
-
-  if (!HttpError || !(err instanceof HttpError) || err.status !== status) {
-    // add properties to generic error
-    err.expose = status < 500
-    err.status = err.statusCode = status
-  }
-
-  for (var key in props) {
-    if (key !== 'status' && key !== 'statusCode') {
-      err[key] = props[key]
+  forEach (fn, thisp) {
+    thisp = thisp || this
+    for (let walker = this[LRU_LIST].head; walker !== null;) {
+      const next = walker.next
+      forEachStep(this, fn, walker, thisp)
+      walker = next
     }
   }
 
-  return err
-}
-
-/**
- * Create HTTP error abstract base class.
- * @private
- */
-
-function createHttpErrorConstructor () {
-  function HttpError () {
-    throw new TypeError('cannot construct abstract class')
+  keys () {
+    return this[LRU_LIST].toArray().map(k => k.key)
   }
 
-  inherits(HttpError, Error)
-
-  return HttpError
-}
-
-/**
- * Create a constructor for a client error.
- * @private
- */
-
-function createClientErrorConstructor (HttpError, name, code) {
-  var className = toClassName(name)
-
-  function ClientError (message) {
-    // create the error object
-    var msg = message != null ? message : statuses.message[code]
-    var err = new Error(msg)
-
-    // capture a stack trace to the construction point
-    Error.captureStackTrace(err, ClientError)
-
-    // adjust the [[Prototype]]
-    setPrototypeOf(err, ClientError.prototype)
-
-    // redefine the error message
-    Object.defineProperty(err, 'message', {
-      enumerable: true,
-      configurable: true,
-      value: msg,
-      writable: true
-    })
-
-    // redefine the error name
-    Object.defineProperty(err, 'name', {
-      enumerable: false,
-      configurable: true,
-      value: className,
-      writable: true
-    })
-
-    return err
+  values () {
+    return this[LRU_LIST].toArray().map(k => k.value)
   }
 
-  inherits(ClientError, HttpError)
-  nameFunc(ClientError, className)
-
-  ClientError.prototype.status = code
-  ClientError.prototype.statusCode = code
-  ClientError.prototype.expose = true
-
-  return ClientError
-}
-
-/**
- * Create function to test is a value is a HttpError.
- * @private
- */
-
-function createIsHttpErrorFunction (HttpError) {
-  return function isHttpError (val) {
-    if (!val || typeof val !== 'object') {
-      return false
+  reset () {
+    if (this[DISPOSE] &&
+        this[LRU_LIST] &&
+        this[LRU_LIST].length) {
+      this[LRU_LIST].forEach(hit => this[DISPOSE](hit.key, hit.value))
     }
 
-    if (val instanceof HttpError) {
+    this[CACHE] = new Map() // hash of items by key
+    this[LRU_LIST] = new Yallist() // list of items in order of use recency
+    this[LENGTH] = 0 // length of items in the list
+  }
+
+  dump () {
+    return this[LRU_LIST].map(hit =>
+      isStale(this, hit) ? false : {
+        k: hit.key,
+        v: hit.value,
+        e: hit.now + (hit.maxAge || 0)
+      }).toArray().filter(h => h)
+  }
+
+  dumpLru () {
+    return this[LRU_LIST]
+  }
+
+  set (key, value, maxAge) {
+    maxAge = maxAge || this[MAX_AGE]
+
+    if (maxAge && typeof maxAge !== 'number')
+      throw new TypeError('maxAge must be a number')
+
+    const now = maxAge ? Date.now() : 0
+    const len = this[LENGTH_CALCULATOR](value, key)
+
+    if (this[CACHE].has(key)) {
+      if (len > this[MAX]) {
+        del(this, this[CACHE].get(key))
+        return false
+      }
+
+      const node = this[CACHE].get(key)
+      const item = node.value
+
+      // dispose of the old one before overwriting
+      // split out into 2 ifs for better coverage tracking
+      if (this[DISPOSE]) {
+        if (!this[NO_DISPOSE_ON_SET])
+          this[DISPOSE](key, item.value)
+      }
+
+      item.now = now
+      item.maxAge = maxAge
+      item.value = value
+      this[LENGTH] += len - item.length
+      item.length = len
+      this.get(key)
+      trim(this)
       return true
     }
 
-    return val instanceof Error &&
-      typeof val.expose === 'boolean' &&
-      typeof val.statusCode === 'number' && val.status === val.statusCode
-  }
-}
+    const hit = new Entry(key, value, len, now, maxAge)
 
-/**
- * Create a constructor for a server error.
- * @private
- */
+    // oversized objects fall out of cache automatically.
+    if (hit.length > this[MAX]) {
+      if (this[DISPOSE])
+        this[DISPOSE](key, value)
 
-function createServerErrorConstructor (HttpError, name, code) {
-  var className = toClassName(name)
-
-  function ServerError (message) {
-    // create the error object
-    var msg = message != null ? message : statuses.message[code]
-    var err = new Error(msg)
-
-    // capture a stack trace to the construction point
-    Error.captureStackTrace(err, ServerError)
-
-    // adjust the [[Prototype]]
-    setPrototypeOf(err, ServerError.prototype)
-
-    // redefine the error message
-    Object.defineProperty(err, 'message', {
-      enumerable: true,
-      configurable: true,
-      value: msg,
-      writable: true
-    })
-
-    // redefine the error name
-    Object.defineProperty(err, 'name', {
-      enumerable: false,
-      configurable: true,
-      value: className,
-      writable: true
-    })
-
-    return err
-  }
-
-  inherits(ServerError, HttpError)
-  nameFunc(ServerError, className)
-
-  ServerError.prototype.status = code
-  ServerError.prototype.statusCode = code
-  ServerError.prototype.expose = false
-
-  return ServerError
-}
-
-/**
- * Set the name of a function, if possible.
- * @private
- */
-
-function nameFunc (func, name) {
-  var desc = Object.getOwnPropertyDescriptor(func, 'name')
-
-  if (desc && desc.configurable) {
-    desc.value = name
-    Object.defineProperty(func, 'name', desc)
-  }
-}
-
-/**
- * Populate the exports object with constructors for every error class.
- * @private
- */
-
-function populateConstructorExports (exports, codes, HttpError) {
-  codes.forEach(function forEachCode (code) {
-    var CodeError
-    var name = toIdentifier(statuses.message[code])
-
-    switch (codeClass(code)) {
-      case 400:
-        CodeError = createClientErrorConstructor(HttpError, name, code)
-        break
-      case 500:
-        CodeError = createServerErrorConstructor(HttpError, name, code)
-        break
+      return false
     }
 
-    if (CodeError) {
-      // export the constructor
-      exports[code] = CodeError
-      exports[name] = CodeError
+    this[LENGTH] += hit.length
+    this[LRU_LIST].unshift(hit)
+    this[CACHE].set(key, this[LRU_LIST].head)
+    trim(this)
+    return true
+  }
+
+  has (key) {
+    if (!this[CACHE].has(key)) return false
+    const hit = this[CACHE].get(key).value
+    return !isStale(this, hit)
+  }
+
+  get (key) {
+    return get(this, key, true)
+  }
+
+  peek (key) {
+    return get(this, key, false)
+  }
+
+  pop () {
+    const node = this[LRU_LIST].tail
+    if (!node)
+      return null
+
+    del(this, node)
+    return node.value
+  }
+
+  del (key) {
+    del(this, this[CACHE].get(key))
+  }
+
+  load (arr) {
+    // reset the cache
+    this.reset()
+
+    const now = Date.now()
+    // A previous serialized cache has the most recent items first
+    for (let l = arr.length - 1; l >= 0; l--) {
+      const hit = arr[l]
+      const expiresAt = hit.e || 0
+      if (expiresAt === 0)
+        // the item was created without expiration in a non aged cache
+        this.set(hit.k, hit.v)
+      else {
+        const maxAge = expiresAt - now
+        // dont add already expired items
+        if (maxAge > 0) {
+          this.set(hit.k, hit.v, maxAge)
+        }
+      }
     }
-  })
+  }
+
+  prune () {
+    this[CACHE].forEach((value, key) => get(this, key, false))
+  }
 }
 
-/**
- * Get a class name from a name identifier.
- * @private
- */
-
-function toClassName (name) {
-  return name.substr(-5) !== 'Error'
-    ? name + 'Error'
-    : name
+const get = (self, key, doUse) => {
+  const node = self[CACHE].get(key)
+  if (node) {
+    const hit = node.value
+    if (isStale(self, hit)) {
+      del(self, node)
+      if (!self[ALLOW_STALE])
+        return undefined
+    } else {
+      if (doUse) {
+        if (self[UPDATE_AGE_ON_GET])
+          node.value.now = Date.now()
+        self[LRU_LIST].unshiftNode(node)
+      }
+    }
+    return hit.value
+  }
 }
+
+const isStale = (self, hit) => {
+  if (!hit || (!hit.maxAge && !self[MAX_AGE]))
+    return false
+
+  const diff = Date.now() - hit.now
+  return hit.maxAge ? diff > hit.maxAge
+    : self[MAX_AGE] && (diff > self[MAX_AGE])
+}
+
+const trim = self => {
+  if (self[LENGTH] > self[MAX]) {
+    for (let walker = self[LRU_LIST].tail;
+      self[LENGTH] > self[MAX] && walker !== null;) {
+      // We know that we're about to delete this one, and also
+      // what the next least recently used key will be, so just
+      // go ahead and set it now.
+      const prev = walker.prev
+      del(self, walker)
+      walker = prev
+    }
+  }
+}
+
+const del = (self, node) => {
+  if (node) {
+    const hit = node.value
+    if (self[DISPOSE])
+      self[DISPOSE](hit.key, hit.value)
+
+    self[LENGTH] -= hit.length
+    self[CACHE].delete(hit.key)
+    self[LRU_LIST].removeNode(node)
+  }
+}
+
+class Entry {
+  constructor (key, value, length, now, maxAge) {
+    this.key = key
+    this.value = value
+    this.length = length
+    this.now = now
+    this.maxAge = maxAge || 0
+  }
+}
+
+const forEachStep = (self, fn, node, thisp) => {
+  let hit = node.value
+  if (isStale(self, hit)) {
+    del(self, node)
+    if (!self[ALLOW_STALE])
+      hit = undefined
+  }
+  if (hit)
+    fn.call(thisp, hit.value, hit.key, self)
+}
+
+module.exports = LRUCache

@@ -1,169 +1,166 @@
-# http-errors
+# lru cache
 
-[![NPM Version][npm-version-image]][npm-url]
-[![NPM Downloads][npm-downloads-image]][node-url]
-[![Node.js Version][node-image]][node-url]
-[![Build Status][ci-image]][ci-url]
-[![Test Coverage][coveralls-image]][coveralls-url]
+A cache object that deletes the least-recently-used items.
 
-Create HTTP errors for Express, Koa, Connect, etc. with ease.
+[![Build Status](https://travis-ci.org/isaacs/node-lru-cache.svg?branch=master)](https://travis-ci.org/isaacs/node-lru-cache) [![Coverage Status](https://coveralls.io/repos/isaacs/node-lru-cache/badge.svg?service=github)](https://coveralls.io/github/isaacs/node-lru-cache)
 
-## Install
+## Installation:
 
-This is a [Node.js](https://nodejs.org/en/) module available through the
-[npm registry](https://www.npmjs.com/). Installation is done using the
-[`npm install` command](https://docs.npmjs.com/getting-started/installing-npm-packages-locally):
-
-```console
-$ npm install http-errors
+```javascript
+npm install lru-cache --save
 ```
 
-## Example
+## Usage:
 
-```js
-var createError = require('http-errors')
-var express = require('express')
-var app = express()
+```javascript
+var LRU = require("lru-cache")
+  , options = { max: 500
+              , length: function (n, key) { return n * 2 + key.length }
+              , dispose: function (key, n) { n.close() }
+              , maxAge: 1000 * 60 * 60 }
+  , cache = new LRU(options)
+  , otherCache = new LRU(50) // sets just the max size
 
-app.use(function (req, res, next) {
-  if (!req.user) return next(createError(401, 'Please login to view this page.'))
-  next()
-})
+cache.set("key", "value")
+cache.get("key") // "value"
+
+// non-string keys ARE fully supported
+// but note that it must be THE SAME object, not
+// just a JSON-equivalent object.
+var someObject = { a: 1 }
+cache.set(someObject, 'a value')
+// Object keys are not toString()-ed
+cache.set('[object Object]', 'a different value')
+assert.equal(cache.get(someObject), 'a value')
+// A similar object with same keys/values won't work,
+// because it's a different object identity
+assert.equal(cache.get({ a: 1 }), undefined)
+
+cache.reset()    // empty the cache
 ```
+
+If you put more stuff in it, then items will fall out.
+
+If you try to put an oversized thing in it, then it'll fall out right
+away.
+
+## Options
+
+* `max` The maximum size of the cache, checked by applying the length
+  function to all values in the cache.  Not setting this is kind of
+  silly, since that's the whole purpose of this lib, but it defaults
+  to `Infinity`.  Setting it to a non-number or negative number will
+  throw a `TypeError`.  Setting it to 0 makes it be `Infinity`.
+* `maxAge` Maximum age in ms.  Items are not pro-actively pruned out
+  as they age, but if you try to get an item that is too old, it'll
+  drop it and return undefined instead of giving it to you.
+  Setting this to a negative value will make everything seem old!
+  Setting it to a non-number will throw a `TypeError`.
+* `length` Function that is used to calculate the length of stored
+  items.  If you're storing strings or buffers, then you probably want
+  to do something like `function(n, key){return n.length}`.  The default is
+  `function(){return 1}`, which is fine if you want to store `max`
+  like-sized things.  The item is passed as the first argument, and
+  the key is passed as the second argumnet.
+* `dispose` Function that is called on items when they are dropped
+  from the cache.  This can be handy if you want to close file
+  descriptors or do other cleanup tasks when items are no longer
+  accessible.  Called with `key, value`.  It's called *before*
+  actually removing the item from the internal cache, so if you want
+  to immediately put it back in, you'll have to do that in a
+  `nextTick` or `setTimeout` callback or it won't do anything.
+* `stale` By default, if you set a `maxAge`, it'll only actually pull
+  stale items out of the cache when you `get(key)`.  (That is, it's
+  not pre-emptively doing a `setTimeout` or anything.)  If you set
+  `stale:true`, it'll return the stale value before deleting it.  If
+  you don't set this, then it'll return `undefined` when you try to
+  get a stale entry, as if it had already been deleted.
+* `noDisposeOnSet` By default, if you set a `dispose()` method, then
+  it'll be called whenever a `set()` operation overwrites an existing
+  key.  If you set this option, `dispose()` will only be called when a
+  key falls out of the cache, not when it is overwritten.
+* `updateAgeOnGet` When using time-expiring entries with `maxAge`,
+  setting this to `true` will make each item's effective time update
+  to the current time whenever it is retrieved from cache, causing it
+  to not expire.  (It can still fall out of cache based on recency of
+  use, of course.)
 
 ## API
 
-This is the current API, currently extracted from Koa and subject to change.
+* `set(key, value, maxAge)`
+* `get(key) => value`
 
-### Error Properties
+    Both of these will update the "recently used"-ness of the key.
+    They do what you think. `maxAge` is optional and overrides the
+    cache `maxAge` option if provided.
 
-- `expose` - can be used to signal if `message` should be sent to the client,
-  defaulting to `false` when `status` >= 500
-- `headers` - can be an object of header names to values to be sent to the
-  client, defaulting to `undefined`. When defined, the key names should all
-  be lower-cased
-- `message` - the traditional error message, which should be kept short and all
-  single line
-- `status` - the status code of the error, mirroring `statusCode` for general
-  compatibility
-- `statusCode` - the status code of the error, defaulting to `500`
+    If the key is not found, `get()` will return `undefined`.
 
-### createError([status], [message], [properties])
+    The key and val can be any value.
 
-Create a new error object with the given message `msg`.
-The error object inherits from `createError.HttpError`.
+* `peek(key)`
 
-```js
-var err = createError(404, 'This video does not exist!')
-```
+    Returns the key value (or `undefined` if not found) without
+    updating the "recently used"-ness of the key.
 
-- `status: 500` - the status code as a number
-- `message` - the message of the error, defaulting to node's text for that status code.
-- `properties` - custom properties to attach to the object
+    (If you find yourself using this a lot, you *might* be using the
+    wrong sort of data structure, but there are some use cases where
+    it's handy.)
 
-### createError([status], [error], [properties])
+* `del(key)`
 
-Extend the given `error` object with `createError.HttpError`
-properties. This will not alter the inheritance of the given
-`error` object, and the modified `error` object is the
-return value.
+    Deletes a key out of the cache.
 
-<!-- eslint-disable no-redeclare -->
+* `reset()`
 
-```js
-fs.readFile('foo.txt', function (err, buf) {
-  if (err) {
-    if (err.code === 'ENOENT') {
-      var httpError = createError(404, err, { expose: false })
-    } else {
-      var httpError = createError(500, err)
-    }
-  }
-})
-```
+    Clear the cache entirely, throwing away all values.
 
-- `status` - the status code as a number
-- `error` - the error object to extend
-- `properties` - custom properties to attach to the object
+* `has(key)`
 
-### createError.isHttpError(val)
+    Check if a key is in the cache, without updating the recent-ness
+    or deleting it for being stale.
 
-Determine if the provided `val` is an `HttpError`. This will return `true`
-if the error inherits from the `HttpError` constructor of this module or
-matches the "duck type" for an error this module creates. All outputs from
-the `createError` factory will return `true` for this function, including
-if an non-`HttpError` was passed into the factory.
+* `forEach(function(value,key,cache), [thisp])`
 
-### new createError\[code || name\](\[msg]\))
+    Just like `Array.prototype.forEach`.  Iterates over all the keys
+    in the cache, in order of recent-ness.  (Ie, more recently used
+    items are iterated over first.)
 
-Create a new error object with the given message `msg`.
-The error object inherits from `createError.HttpError`.
+* `rforEach(function(value,key,cache), [thisp])`
 
-```js
-var err = new createError.NotFound()
-```
+    The same as `cache.forEach(...)` but items are iterated over in
+    reverse order.  (ie, less recently used items are iterated over
+    first.)
 
-- `code` - the status code as a number
-- `name` - the name of the error as a "bumpy case", i.e. `NotFound` or `InternalServerError`.
+* `keys()`
 
-#### List of all constructors
+    Return an array of the keys in the cache.
 
-|Status Code|Constructor Name             |
-|-----------|-----------------------------|
-|400        |BadRequest                   |
-|401        |Unauthorized                 |
-|402        |PaymentRequired              |
-|403        |Forbidden                    |
-|404        |NotFound                     |
-|405        |MethodNotAllowed             |
-|406        |NotAcceptable                |
-|407        |ProxyAuthenticationRequired  |
-|408        |RequestTimeout               |
-|409        |Conflict                     |
-|410        |Gone                         |
-|411        |LengthRequired               |
-|412        |PreconditionFailed           |
-|413        |PayloadTooLarge              |
-|414        |URITooLong                   |
-|415        |UnsupportedMediaType         |
-|416        |RangeNotSatisfiable          |
-|417        |ExpectationFailed            |
-|418        |ImATeapot                    |
-|421        |MisdirectedRequest           |
-|422        |UnprocessableEntity          |
-|423        |Locked                       |
-|424        |FailedDependency             |
-|425        |TooEarly                     |
-|426        |UpgradeRequired              |
-|428        |PreconditionRequired         |
-|429        |TooManyRequests              |
-|431        |RequestHeaderFieldsTooLarge  |
-|451        |UnavailableForLegalReasons   |
-|500        |InternalServerError          |
-|501        |NotImplemented               |
-|502        |BadGateway                   |
-|503        |ServiceUnavailable           |
-|504        |GatewayTimeout               |
-|505        |HTTPVersionNotSupported      |
-|506        |VariantAlsoNegotiates        |
-|507        |InsufficientStorage          |
-|508        |LoopDetected                 |
-|509        |BandwidthLimitExceeded       |
-|510        |NotExtended                  |
-|511        |NetworkAuthenticationRequired|
+* `values()`
 
-## License
+    Return an array of the values in the cache.
 
-[MIT](LICENSE)
+* `length`
 
-[ci-image]: https://badgen.net/github/checks/jshttp/http-errors/master?label=ci
-[ci-url]: https://github.com/jshttp/http-errors/actions?query=workflow%3Aci
-[coveralls-image]: https://badgen.net/coveralls/c/github/jshttp/http-errors/master
-[coveralls-url]: https://coveralls.io/r/jshttp/http-errors?branch=master
-[node-image]: https://badgen.net/npm/node/http-errors
-[node-url]: https://nodejs.org/en/download
-[npm-downloads-image]: https://badgen.net/npm/dm/http-errors
-[npm-url]: https://npmjs.org/package/http-errors
-[npm-version-image]: https://badgen.net/npm/v/http-errors
-[travis-image]: https://badgen.net/travis/jshttp/http-errors/master
-[travis-url]: https://travis-ci.org/jshttp/http-errors
+    Return total length of objects in cache taking into account
+    `length` options function.
+
+* `itemCount`
+
+    Return total quantity of objects currently in cache. Note, that
+    `stale` (see options) items are returned as part of this item
+    count.
+
+* `dump()`
+
+    Return an array of the cache entries ready for serialization and usage
+    with 'destinationCache.load(arr)`.
+
+* `load(cacheEntriesArray)`
+
+    Loads another cache entries array, obtained with `sourceCache.dump()`,
+    into the cache. The destination cache is reset before loading new entries
+
+* `prune()`
+
+    Manually iterates over the entire cache proactively pruning old entries
