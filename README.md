@@ -1,4 +1,4 @@
-# etag
+# fresh
 
 [![NPM Version][npm-image]][npm-url]
 [![NPM Downloads][downloads-image]][downloads-url]
@@ -6,10 +6,7 @@
 [![Build Status][travis-image]][travis-url]
 [![Test Coverage][coveralls-image]][coveralls-url]
 
-Create simple HTTP ETags
-
-This module generates HTTP ETags (as defined in RFC 7232) for use in
-HTTP responses.
+HTTP response freshness testing
 
 ## Installation
 
@@ -17,8 +14,8 @@ This is a [Node.js](https://nodejs.org/en/) module available through the
 [npm registry](https://www.npmjs.com/). Installation is done using the
 [`npm install` command](https://docs.npmjs.com/getting-started/installing-npm-packages-locally):
 
-```sh
-$ npm install etag
+```
+$ npm install fresh
 ```
 
 ## API
@@ -26,134 +23,97 @@ $ npm install etag
 <!-- eslint-disable no-unused-vars -->
 
 ```js
-var etag = require('etag')
+var fresh = require('fresh')
 ```
 
-### etag(entity, [options])
+### fresh(reqHeaders, resHeaders)
 
-Generate a strong ETag for the given entity. This should be the complete
-body of the entity. Strings, `Buffer`s, and `fs.Stats` are accepted. By
-default, a strong ETag is generated except for `fs.Stats`, which will
-generate a weak ETag (this can be overwritten by `options.weak`).
+Check freshness of the response using request and response headers.
 
-<!-- eslint-disable no-undef -->
+When the response is still "fresh" in the client's cache `true` is
+returned, otherwise `false` is returned to indicate that the client
+cache is now stale and the full response should be sent.
+
+When a client sends the `Cache-Control: no-cache` request header to
+indicate an end-to-end reload request, this module will return `false`
+to make handling these requests transparent.
+
+## Known Issues
+
+This module is designed to only follow the HTTP specifications, not
+to work-around all kinda of client bugs (especially since this module
+typically does not recieve enough information to understand what the
+client actually is).
+
+There is a known issue that in certain versions of Safari, Safari
+will incorrectly make a request that allows this module to validate
+freshness of the resource even when Safari does not have a
+representation of the resource in the cache. The module
+[jumanji](https://www.npmjs.com/package/jumanji) can be used in
+an Express application to work-around this issue and also provides
+links to further reading on this Safari bug.
+
+## Example
+
+### API usage
+
+<!-- eslint-disable no-redeclare, no-undef -->
 
 ```js
-res.setHeader('ETag', etag(body))
+var reqHeaders = { 'if-none-match': '"foo"' }
+var resHeaders = { 'etag': '"bar"' }
+fresh(reqHeaders, resHeaders)
+// => false
+
+var reqHeaders = { 'if-none-match': '"foo"' }
+var resHeaders = { 'etag': '"foo"' }
+fresh(reqHeaders, resHeaders)
+// => true
 ```
 
-#### Options
+### Using with Node.js http server
 
-`etag` accepts these properties in the options object.
+```js
+var fresh = require('fresh')
+var http = require('http')
 
-##### weak
+var server = http.createServer(function (req, res) {
+  // perform server logic
+  // ... including adding ETag / Last-Modified response headers
 
-Specifies if the generated ETag will include the weak validator mark (that
-is, the leading `W/`). The actual entity tag is the same. The default value
-is `false`, unless the `entity` is `fs.Stats`, in which case it is `true`.
+  if (isFresh(req, res)) {
+    // client has a fresh copy of resource
+    res.statusCode = 304
+    res.end()
+    return
+  }
 
-## Testing
+  // send the resource
+  res.statusCode = 200
+  res.end('hello, world!')
+})
 
-```sh
-$ npm test
-```
+function isFresh (req, res) {
+  return fresh(req.headers, {
+    'etag': res.getHeader('ETag'),
+    'last-modified': res.getHeader('Last-Modified')
+  })
+}
 
-## Benchmark
-
-```bash
-$ npm run-script bench
-
-> etag@1.8.1 bench nodejs-etag
-> node benchmark/index.js
-
-  http_parser@2.7.0
-  node@6.11.1
-  v8@5.1.281.103
-  uv@1.11.0
-  zlib@1.2.11
-  ares@1.10.1-DEV
-  icu@58.2
-  modules@48
-  openssl@1.0.2k
-
-> node benchmark/body0-100b.js
-
-  100B body
-
-  4 tests completed.
-
-  buffer - strong x 258,647 ops/sec ±1.07% (180 runs sampled)
-  buffer - weak   x 263,812 ops/sec ±0.61% (184 runs sampled)
-  string - strong x 259,955 ops/sec ±1.19% (185 runs sampled)
-  string - weak   x 264,356 ops/sec ±1.09% (184 runs sampled)
-
-> node benchmark/body1-1kb.js
-
-  1KB body
-
-  4 tests completed.
-
-  buffer - strong x 189,018 ops/sec ±1.12% (182 runs sampled)
-  buffer - weak   x 190,586 ops/sec ±0.81% (186 runs sampled)
-  string - strong x 144,272 ops/sec ±0.96% (188 runs sampled)
-  string - weak   x 145,380 ops/sec ±1.43% (187 runs sampled)
-
-> node benchmark/body2-5kb.js
-
-  5KB body
-
-  4 tests completed.
-
-  buffer - strong x 92,435 ops/sec ±0.42% (188 runs sampled)
-  buffer - weak   x 92,373 ops/sec ±0.58% (189 runs sampled)
-  string - strong x 48,850 ops/sec ±0.56% (186 runs sampled)
-  string - weak   x 49,380 ops/sec ±0.56% (190 runs sampled)
-
-> node benchmark/body3-10kb.js
-
-  10KB body
-
-  4 tests completed.
-
-  buffer - strong x 55,989 ops/sec ±0.93% (188 runs sampled)
-  buffer - weak   x 56,148 ops/sec ±0.55% (190 runs sampled)
-  string - strong x 27,345 ops/sec ±0.43% (188 runs sampled)
-  string - weak   x 27,496 ops/sec ±0.45% (190 runs sampled)
-
-> node benchmark/body4-100kb.js
-
-  100KB body
-
-  4 tests completed.
-
-  buffer - strong x 7,083 ops/sec ±0.22% (190 runs sampled)
-  buffer - weak   x 7,115 ops/sec ±0.26% (191 runs sampled)
-  string - strong x 3,068 ops/sec ±0.34% (190 runs sampled)
-  string - weak   x 3,096 ops/sec ±0.35% (190 runs sampled)
-
-> node benchmark/stats.js
-
-  stat
-
-  4 tests completed.
-
-  real - strong x 871,642 ops/sec ±0.34% (189 runs sampled)
-  real - weak   x 867,613 ops/sec ±0.39% (190 runs sampled)
-  fake - strong x 401,051 ops/sec ±0.40% (189 runs sampled)
-  fake - weak   x 400,100 ops/sec ±0.47% (188 runs sampled)
+server.listen(3000)
 ```
 
 ## License
 
 [MIT](LICENSE)
 
-[npm-image]: https://img.shields.io/npm/v/etag.svg
-[npm-url]: https://npmjs.org/package/etag
-[node-version-image]: https://img.shields.io/node/v/etag.svg
-[node-version-url]: https://nodejs.org/en/download/
-[travis-image]: https://img.shields.io/travis/jshttp/etag/master.svg
-[travis-url]: https://travis-ci.org/jshttp/etag
-[coveralls-image]: https://img.shields.io/coveralls/jshttp/etag/master.svg
-[coveralls-url]: https://coveralls.io/r/jshttp/etag?branch=master
-[downloads-image]: https://img.shields.io/npm/dm/etag.svg
-[downloads-url]: https://npmjs.org/package/etag
+[npm-image]: https://img.shields.io/npm/v/fresh.svg
+[npm-url]: https://npmjs.org/package/fresh
+[node-version-image]: https://img.shields.io/node/v/fresh.svg
+[node-version-url]: https://nodejs.org/en/
+[travis-image]: https://img.shields.io/travis/jshttp/fresh/master.svg
+[travis-url]: https://travis-ci.org/jshttp/fresh
+[coveralls-image]: https://img.shields.io/coveralls/jshttp/fresh/master.svg
+[coveralls-url]: https://coveralls.io/r/jshttp/fresh?branch=master
+[downloads-image]: https://img.shields.io/npm/dm/fresh.svg
+[downloads-url]: https://npmjs.org/package/fresh
