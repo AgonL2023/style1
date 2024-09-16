@@ -1,2 +1,5 @@
+"use strict";
 // File generated from our OpenAPI spec
-export const ApiVersion = '2024-04-10';
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.ApiVersion = void 0;
+exports.ApiVersion = '2024-04-10';

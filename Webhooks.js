@@ -1,6 +1,9 @@
-import { StripeError, StripeSignatureVerificationError } from './Error.js';
-import { CryptoProviderOnlySupportsAsyncError, } from './crypto/CryptoProvider.js';
-export function createWebhooks(platformFunctions) {
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.createWebhooks = void 0;
+const Error_js_1 = require("./Error.js");
+const CryptoProvider_js_1 = require("./crypto/CryptoProvider.js");
+function createWebhooks(platformFunctions) {
     const Webhook = {
         DEFAULT_TOLERANCE: 300,
         // @ts-ignore
@@ -10,7 +13,7 @@ export function createWebhooks(platformFunctions) {
                 this.signature.verifyHeader(payload, header, secret, tolerance || Webhook.DEFAULT_TOLERANCE, cryptoProvider, receivedAt);
             }
             catch (e) {
-                if (e instanceof CryptoProviderOnlySupportsAsyncError) {
+                if (e instanceof CryptoProvider_js_1.CryptoProviderOnlySupportsAsyncError) {
                     e.message +=
                         '\nUse `await constructEventAsync(...)` instead of `constructEvent(...)`';
                 }
@@ -41,7 +44,7 @@ export function createWebhooks(platformFunctions) {
          */
         generateTestHeaderString: function (opts) {
             if (!opts) {
-                throw new StripeError({
+                throw new Error_js_1.StripeError({
                     message: 'Options are required',
                 });
             }
@@ -82,7 +85,7 @@ export function createWebhooks(platformFunctions) {
     }
     function parseEventDetails(encodedPayload, encodedHeader, expectedScheme) {
         if (!encodedPayload) {
-            throw new StripeSignatureVerificationError(encodedHeader, encodedPayload, {
+            throw new Error_js_1.StripeSignatureVerificationError(encodedHeader, encodedPayload, {
                 message: 'No webhook payload was provided.',
             });
         }
@@ -100,7 +103,7 @@ export function createWebhooks(platformFunctions) {
             throw new Error('Unexpected: An array was passed as a header, which should not be possible for the stripe-signature header.');
         }
         if (encodedHeader == null || encodedHeader == '') {
-            throw new StripeSignatureVerificationError(encodedHeader, encodedPayload, {
+            throw new Error_js_1.StripeSignatureVerificationError(encodedHeader, encodedPayload, {
                 message: 'No stripe-signature header value was provided.',
             });
         }
@@ -109,12 +112,12 @@ export function createWebhooks(platformFunctions) {
             : encodedHeader;
         const details = parseHeader(decodedHeader, expectedScheme);
         if (!details || details.timestamp === -1) {
-            throw new StripeSignatureVerificationError(decodedHeader, decodedPayload, {
+            throw new Error_js_1.StripeSignatureVerificationError(decodedHeader, decodedPayload, {
                 message: 'Unable to extract timestamp and signatures from header',
             });
         }
         if (!details.signatures.length) {
-            throw new StripeSignatureVerificationError(decodedHeader, decodedPayload, {
+            throw new Error_js_1.StripeSignatureVerificationError(decodedHeader, decodedPayload, {
                 message: 'No signatures found with expected scheme',
             });
         }
@@ -134,7 +137,7 @@ export function createWebhooks(platformFunctions) {
             : '';
         if (!signatureFound) {
             if (suspectPayloadType) {
-                throw new StripeSignatureVerificationError(header, payload, {
+                throw new Error_js_1.StripeSignatureVerificationError(header, payload, {
                     message: 'Webhook payload must be provided as a string or a Buffer (https://nodejs.org/api/buffer.html) instance representing the _raw_ request body.' +
                         'Payload was provided as a parsed JavaScript object instead. \n' +
                         'Signature verification is impossible without access to the original signed material. \n' +
@@ -143,7 +146,7 @@ export function createWebhooks(platformFunctions) {
                         whitespaceMessage,
                 });
             }
-            throw new StripeSignatureVerificationError(header, payload, {
+            throw new Error_js_1.StripeSignatureVerificationError(header, payload, {
                 message: 'No signatures found matching the expected signature for payload.' +
                     ' Are you passing the raw request body you received from Stripe? \n' +
                     ' If a webhook request is being forwarded by a third-party tool,' +
@@ -156,7 +159,7 @@ export function createWebhooks(platformFunctions) {
         const timestampAge = Math.floor((typeof receivedAt === 'number' ? receivedAt : Date.now()) / 1000) - details.timestamp;
         if (tolerance > 0 && timestampAge > tolerance) {
             // @ts-ignore
-            throw new StripeSignatureVerificationError(header, payload, {
+            throw new Error_js_1.StripeSignatureVerificationError(header, payload, {
                 message: 'Timestamp outside the tolerance zone',
             });
         }
@@ -194,3 +197,4 @@ export function createWebhooks(platformFunctions) {
     Webhook.signature = signature;
     return Webhook;
 }
+exports.createWebhooks = createWebhooks;

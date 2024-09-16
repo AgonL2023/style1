@@ -1,8 +1,11 @@
+"use strict";
 // File generated from our OpenAPI spec
-import { multipartRequestDataProcessor } from '../multipart.js';
-import { StripeResource } from '../StripeResource.js';
-const stripeMethod = StripeResource.method;
-export const Files = StripeResource.extend({
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.Files = void 0;
+const multipart_js_1 = require("../multipart.js");
+const StripeResource_js_1 = require("../StripeResource.js");
+const stripeMethod = StripeResource_js_1.StripeResource.method;
+exports.Files = StripeResource_js_1.StripeResource.extend({
     create: stripeMethod({
         method: 'POST',
         fullPath: '/v1/files',
@@ -17,5 +20,5 @@ export const Files = StripeResource.extend({
         fullPath: '/v1/files',
         methodType: 'list',
     }),
-    requestDataProcessor: multipartRequestDataProcessor,
+    requestDataProcessor: multipart_js_1.multipartRequestDataProcessor,
 });

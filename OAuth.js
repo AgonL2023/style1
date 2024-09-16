@@ -1,9 +1,11 @@
 'use strict';
-import { StripeResource } from '../StripeResource.js';
-import { stringifyRequestData } from '../utils.js';
-const stripeMethod = StripeResource.method;
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.OAuth = void 0;
+const StripeResource_js_1 = require("../StripeResource.js");
+const utils_js_1 = require("../utils.js");
+const stripeMethod = StripeResource_js_1.StripeResource.method;
 const oAuthHost = 'connect.stripe.com';
-export const OAuth = StripeResource.extend({
+exports.OAuth = StripeResource_js_1.StripeResource.extend({
     basePath: '/',
     authorizeUrl(params, options) {
         params = params || {};
@@ -22,7 +24,7 @@ export const OAuth = StripeResource.extend({
         if (!params.scope) {
             params.scope = 'read_write';
         }
-        return `https://${oAuthHost}/${path}?${stringifyRequestData(params)}`;
+        return `https://${oAuthHost}/${path}?${(0, utils_js_1.stringifyRequestData)(params)}`;
     },
     token: stripeMethod({
         method: 'POST',
