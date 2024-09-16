@@ -1,19 +1,35 @@
 'use strict';
 
 var test = require('tape');
+var gOPD = require('../');
 
-var E = require('../');
-var R = require('../range');
-var Ref = require('../ref');
-var S = require('../syntax');
-var T = require('../type');
+test('gOPD', function (t) {
+	t.test('supported', { skip: !gOPD }, function (st) {
+		st.equal(typeof gOPD, 'function', 'is a function');
 
-test('errors', function (t) {
-	t.equal(E, Error);
-	t.equal(R, RangeError);
-	t.equal(Ref, ReferenceError);
-	t.equal(S, SyntaxError);
-	t.equal(T, TypeError);
+		var obj = { x: 1 };
+		st.ok('x' in obj, 'property exists');
+
+		var desc = gOPD(obj, 'x');
+		st.deepEqual(
+			desc,
+			{
+				configurable: true,
+				enumerable: true,
+				value: 1,
+				writable: true
+			},
+			'descriptor is as expected'
+		);
+
+		st.end();
+	});
+
+	t.test('not supported', { skip: gOPD }, function (st) {
+		st.notOk(gOPD, 'is falsy');
+
+		st.end();
+	});
 
 	t.end();
 });
